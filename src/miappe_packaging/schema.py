@@ -44,6 +44,8 @@ class Base:
         except AnnotationError as e:
             e.add_note(f"Class: {cls.__name__}")
             raise
+
+        # Register class at registry
         Registry().register(cls)
         return super().__init_subclass__()
 
@@ -130,7 +132,12 @@ class Registry:
             self._instance = super().__new__(self, *args, **kwargs)
         return self._instance
 
-    def parse(self, path: str | Path) -> None:
+    def _parse(self, path: str | Path) -> None:
+        """Parse rdf store from path
+
+        Args:
+            path (str | Path): path description
+        """
         self._graph.parse(path)
 
     def serialize(
@@ -140,10 +147,38 @@ class Registry:
             "json-ld", "turtle", "xml", "pretty-xml", "n3", "nt", "trix"
         ] = "json-ld",
     ) -> None:
+        """Write to file for persistency.
+
+        Before the underlying graph is serialised, all semantic objects are first added to the graph
+
+        Args:
+            destination (str | Path): file path
+            format (TypingLiteral[ &quot;json, optional): supported serialisation formats. Defaults to "json-ld".
+        """
+        self.add_all()
         self._graph.serialize(destination=destination, format=format)
 
     def register(self, model: type[Base]) -> None:
-        self.models[model.rdf_resource] = model.__class__
+        """Register model class with registry. Model classes are searchable with registry
+        by their rdfs:Resource reference
+
+        Args:
+            model (type[Base]): model class
+        """
+        self.models[model.rdf_resource] = model
+
+    def load(self, path: str | Path) -> None:
+        """Open file from path and create semantic class objects based on linked data.
+
+        Args:
+            path (str | Path): path to linked data file
+        """
+        self._parse(path)
+        for class_ref, class_model in self.models.items():
+            class_ids = self._graph.subjects(RDF.type, class_ref, unique=True)
+            for class_id in class_ids:
+                stmts = self._graph.predicate_objects(class_id, unique=True)
+                class_model.from_stmts(class_id, stmts)
 
     def add(self, instance: Base) -> None:
         """Add an instance of a semantic class to current graph
@@ -172,3 +207,11 @@ class Registry:
             value = getattr(instance, name)
             if value is not None:
                 atomic_add(name, info, value)
+
+    def add_all(self) -> None:
+        """Automatically add all semantic object instance to
+        graph to prepare to write to disk
+        """
+        for _, class_model in self.models.items():
+            for _, model_instance in class_model.store.items():
+                self.add(model_instance)

@@ -47,18 +47,17 @@ class Person(Base):
 
 
 Harry = Person(id="http://example.org/Harry", firstName="Harry", lastName="Le")
-Sally = Person(firstName="Sally", lastName="Hoang")
-John = Person(firstName="John", lastName="Doe")
-Jane = Person(firstName="Jane", lastName="Doe")
+Sally = Person(id="http://example.org/Sally", firstName="Sally", lastName="Hoang")
+John = Person(id="http://example.org/John", firstName="John", lastName="Doe")
+Jane = Person(id="http://example.org/Jane", firstName="Jane", lastName="Doe")
 Harry.knows.append(Sally.ID)
 Sally.knows.append(Harry.ID)
 John.knows.append(Jane.ID)
 Jane.knows.append(John.ID)
 registry = Registry()
-registry.add(Harry)
-registry.add(Sally)
-registry.add(John)
-registry.add(Jane)
 registry.serialize("FOAF.json", format="json-ld")
 
+# %%
+registry = Registry()
+registry.load("FOAF.json")
 # %%
