@@ -1,50 +1,64 @@
 # %%
 from __future__ import annotations
 
-import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import (
+    Annotated,
+    Any,
+    Mapping,
+    MutableMapping,
+    MutableSequence,
+    MutableSet,
+    Optional,
+    Sequence,
+    Set,
+    Type,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
-from rdflib.namespace import FOAF, XSD
+from rdflib import IdentifiedNode, URIRef
+from rdflib.namespace import FOAF
 
-from src.miappe_packaging.base import Base, Registry
-from src.miappe_packaging.utils import field
+from src.miappe_packaging.schema import Base, FieldInfo, Registry, Schema
+
+PersonSchema = Schema(
+    __rdf_resource__=FOAF.Person,
+    attrs={
+        "firstName": FieldInfo(ref=FOAF.firstName),
+        "lastName": FieldInfo(ref=FOAF.lastName),
+        "knows": FieldInfo(
+            ref=FOAF.knows,
+            repeat=True,
+            required=False,
+            range={"ref": FOAF.Person, "value": "Person"},
+        ),
+    },
+)
 
 
-@dataclass()
+@dataclass
 class Person(Base):
-    __meta_class__ = FOAF.Person
-
-    first_name: str = field(ref=FOAF.firstName)
-
-    last_name: str = field(ref=FOAF.lastName)
-
-    birth_day: datetime.date | None = field(
-        ref=FOAF.birthday, type_ref=XSD.date, default=None
-    )
-
-    email: str | None = field(ref=FOAF.mbox, default=None)
-
-    knows: list[Person] = field(ref=FOAF.knows, default_factory=list)
+    __schema__ = PersonSchema
+    firstName: str
+    lastName: str
+    knows: list[IdentifiedNode] = field(default_factory=list)
 
 
-# HELPERS
-Harry = Person(
-    id="http://example.org/Harry",
-    first_name="Harry",
-    last_name="Le",
-    birth_day=datetime.date(1995, 10, 29),
-    email="lehoangsonsg@gmail.com",
-)
-Sally = Person(
-    id="http://example.org/Sally",
-    first_name="Sally",
-    last_name="Hoang",
-    birth_day=datetime.date(1993, 1, 2),
-    email="httra12@gmail.com",
-)
-Harry.knows.append(Sally)
+Harry = Person(id="http://example.org/Harry", firstName="Harry", lastName="Le")
+Sally = Person(firstName="Sally", lastName="Hoang")
+John = Person(firstName="John", lastName="Doe")
+Jane = Person(firstName="Jane", lastName="Doe")
+Harry.knows.append(Sally.ID)
+Sally.knows.append(Harry.ID)
+John.knows.append(Jane.ID)
+Jane.knows.append(John.ID)
 registry = Registry()
 registry.add(Harry)
 registry.add(Sally)
-registry.serialize("FOAF.json")
+registry.add(John)
+registry.add(Jane)
+registry.serialize("FOAF.json", format="json-ld")
+
 # %%
