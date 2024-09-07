@@ -15,14 +15,13 @@ from src.miappe_packaging.exceptions import AnnotationError, IdError, SchemaErro
 from src.miappe_packaging.utils import cached_class_property
 
 
-class TypeReference(TypedDict):
-    value: str | type
+class IDRef(TypedDict):
     ref: URIRef
 
 
 class FieldInfo(TypedDict):
     ref: Required[URIRef]
-    range: NotRequired[URIRef | TypeReference]
+    range: NotRequired[URIRef | IDRef]
     repeat: NotRequired[bool]
     required: NotRequired[bool]
 
@@ -38,6 +37,10 @@ class Registry:
     _graph: Graph = Graph()
     ID_Pool: set[IdentifiedNode] = set()
 
+    @property
+    def graph(self) -> Graph:
+        return self._graph
+
     def __new__(self, *args, **kwargs):
         if not self._instance:
             self._instance = super().__new__(self, *args, **kwargs)
@@ -49,20 +52,15 @@ class Registry:
         self.ID_Pool.add(id)
         return True
 
-    def _parse(self, path: str | Path) -> None:
-        """Parse rdf store from path
-
-        Args:
-            path (str | Path): path description
-        """
-        self._graph.parse(path)
-
     def serialize(
         self,
         destination: str | Path,
         format: TypingLiteral[
             "json-ld", "turtle", "xml", "pretty-xml", "n3", "nt", "trix"
         ] = "json-ld",
+        base: str | None = None,
+        encoding: str | None = None,
+        **args: Any,
     ) -> None:
         """Write to file for persistency.
 
@@ -73,7 +71,9 @@ class Registry:
             format (TypingLiteral[ &quot;json, optional): supported serialisation formats. Defaults to "json-ld".
         """
         self.add_all()
-        self._graph.serialize(destination=destination, format=format)
+        self._graph.serialize(
+            destination=destination, format=format, base=base, encoding=encoding, **args
+        )
 
     def register(self, model: type["Base"]) -> None:
         """Register model class with registry. Model classes are searchable with registry
@@ -90,7 +90,7 @@ class Registry:
         Args:
             path (str | Path): path to linked data file
         """
-        self._parse(path)
+        self.graph.parse(path)
         for class_ref, class_model in self.models.items():
             class_ids = self._graph.subjects(RDF.type, class_ref, unique=True)
             for class_id in class_ids:
@@ -110,10 +110,16 @@ class Registry:
                     atomic_add(name, info, item)
             else:
                 datatype = info.get("range", None)
-                datatype = datatype if isinstance(datatype, URIRef) else None
-                literal_value = Literal(value, datatype=datatype)
+                if not datatype or isinstance(datatype, URIRef):
+                    add_value = Literal(value, datatype=datatype)
+                else:
+                    if not isinstance(value, URIRef):
+                        raise IdError(
+                            f"IDRef range type object must be a URIRef. Class: {instance.__class__.__name__}, field: {name}"
+                        )
+                    add_value = value
                 try:
-                    self._graph.add((instance.ID, info["ref"], literal_value))
+                    self._graph.add((instance.ID, info["ref"], add_value))
                 except KeyError:
                     raise SchemaError(
                         f"Missing required ref for schema field {name} of of class: {instance.__class__.__name__}"
