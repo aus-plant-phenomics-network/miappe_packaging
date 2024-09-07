@@ -19,7 +19,7 @@ from typing import (
 )
 
 from rdflib import IdentifiedNode, URIRef
-from rdflib.namespace import FOAF
+from rdflib.namespace import FOAF, XSD
 
 from src.miappe_packaging.schema import Base, FieldInfo, Registry, Schema
 
@@ -32,7 +32,7 @@ PersonSchema = Schema(
             ref=FOAF.knows,
             repeat=True,
             required=False,
-            range={"ref": FOAF.Person, "value": "Person"},
+            range={"ref": FOAF.Person},
         ),
     },
 )
@@ -46,18 +46,23 @@ class Person(Base):
     knows: list[IdentifiedNode] = field(default_factory=list)
 
 
-Harry = Person(id="http://example.org/Harry", firstName="Harry", lastName="Le")
-Sally = Person(id="http://example.org/Sally", firstName="Sally", lastName="Hoang")
-John = Person(id="http://example.org/John", firstName="John", lastName="Doe")
-Jane = Person(id="http://example.org/Jane", firstName="Jane", lastName="Doe")
+registry = Registry()
+registry.graph.bind("foaf", FOAF)
+Harry = Person(id="http://schema.org/Harry", firstName="Harry", lastName="Le")
+Sally = Person(id="http://schema.org/Sally", firstName="Sally", lastName="Hoang")
+John = Person(id="http://schema.org/John", firstName="John", lastName="Doe")
+Jane = Person(id="http://schema.org/Jane", firstName="Jane", lastName="Doe")
 Harry.knows.append(Sally.ID)
+Harry.knows.append(Jane.ID)
 Sally.knows.append(Harry.ID)
 John.knows.append(Jane.ID)
 Jane.knows.append(John.ID)
-registry = Registry()
+Jane.knows.append(Harry.ID)
 registry.serialize("FOAF.json", format="json-ld")
 
 # %%
 registry = Registry()
 registry.load("FOAF.json")
+
+
 # %%
