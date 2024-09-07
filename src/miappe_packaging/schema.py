@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence, Set
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar, NotRequired, Required, TypedDict
+from typing import Any, ClassVar, NotRequired, Required, TypedDict, overload
 from typing import (
     Literal as TypingLiteral,
 )
@@ -52,6 +52,32 @@ class Registry:
         self.ID_Pool.add(id)
         return True
 
+    @overload
+    def serialize(
+        self,
+        destination: str | Path,
+        base: str | None = None,
+        encoding: str | None = None,
+        context: dict[str, URIRef] | None = None,
+        use_native_types: bool = False,
+        use_rdf_type: bool = False,
+        auto_compact: bool = False,
+        indent: int = 2,
+        separators: tuple[str, str] = (",", ":"),
+        sort_keys: bool = True,
+        ensure_ascii: bool = False,
+    ) -> None: ...
+    @overload
+    def serialize(
+        self,
+        destination: str | Path,
+        format: TypingLiteral[
+            "json-ld", "turtle", "xml", "pretty-xml", "n3", "nt", "trix"
+        ] = "json-ld",
+        base: str | None = None,
+        encoding: str | None = None,
+        **args: Any,
+    ) -> None: ...
     def serialize(
         self,
         destination: str | Path,
