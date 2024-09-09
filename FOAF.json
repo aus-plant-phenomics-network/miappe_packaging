@@ -1,0 +1,37 @@
+{
+  "@context": {
+    "foaf": "http://xmlns.com/foaf/0.1/"
+  },
+  "@graph": [
+    {
+      "@id": "http://example.org/Harry",
+      "@type": "foaf:Person",
+      "foaf:age": 29,
+      "foaf:birthday": {
+        "@type": "http://www.w3.org/2001/XMLSchema#date",
+        "@value": "1995-10-29"
+      },
+      "foaf:firstName": "Harry",
+      "foaf:knows": {
+        "@id": "http://example.org/Sally"
+      },
+      "foaf:lastName": "Le",
+      "foaf:mbox": "lehoangsonsg@gmail.com"
+    },
+    {
+      "@id": "http://example.org/Sally",
+      "@type": "foaf:Person",
+      "foaf:age": 31,
+      "foaf:birthday": {
+        "@type": "http://www.w3.org/2001/XMLSchema#date",
+        "@value": "1993-01-02"
+      },
+      "foaf:firstName": "Sally",
+      "foaf:knows": {
+        "@id": "http://example.org/Harry"
+      },
+      "foaf:lastName": "Hoang",
+      "foaf:mbox": "lehoangsonsg@gmail.com"
+    }
+  ]
+}

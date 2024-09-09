@@ -9,6 +9,7 @@ from rdflib.namespace import FOAF, XSD
 
 import src.miappe_packaging.converter as Converter
 from src.miappe_packaging.base import Base
+from src.miappe_packaging.registry import Registry
 from src.miappe_packaging.types import FieldInfo, IDRef, Schema
 
 PersonSchema = Schema(
@@ -55,4 +56,6 @@ Sally = Person(
     knows=["http://example.org/Harry"],
 )
 
+registry = Registry()
+registry.serialize(destination="FOAF.json", context={"foaf": FOAF._NS})
 # %%

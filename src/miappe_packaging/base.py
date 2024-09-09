@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING, ClassVar
 from msgspec import Struct, field
 from rdflib import BNode, IdentifiedNode
 
-from src.miappe_packaging.exceptions import AnnotationError
+from src.miappe_packaging.exceptions import AnnotationError, IdError, MissingSchema
+from src.miappe_packaging.registry import Registry
 from src.miappe_packaging.utils import convert_to_ref, validate_schema
 
 if TYPE_CHECKING:
@@ -22,6 +23,9 @@ class Base(Struct, kw_only=True):
     """Instance ID. If not provided, will be assigned a blank node ID"""
     __schema__: ClassVar[Schema]
     """Schema object. Class attribute"""
+
+    def __post_init__(self) -> None:
+        Registry().register(self)
 
     @property
     def ID(self) -> IdentifiedNode:
@@ -41,5 +45,7 @@ class Base(Struct, kw_only=True):
             except AnnotationError as e:
                 e.add_note(f"Class: {cls.__name__}")
                 raise
+        else:
+            raise MissingSchema("Schema object must be provided")
 
         return super().__init_subclass__()
