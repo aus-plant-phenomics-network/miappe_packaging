@@ -1,11 +1,19 @@
-from typing import Any, overload
+from __future__ import annotations
 
-from rdflib import Graph, IdentifiedNode
+from typing import TYPE_CHECKING, Any, overload
+
+import msgspec
+from rdflib import Graph, IdentifiedNode, Literal, URIRef
 from rdflib.extras.describer import Describer
+from rdflib.namespace import RDF
 
 from src.miappe_packaging.exceptions import MissingSchema
+from src.miappe_packaging.json import enc_hook
 from src.miappe_packaging.types import FieldInfo, IDRef, Schema
 from src.miappe_packaging.utils import convert_to_ref, validate_schema
+
+if TYPE_CHECKING:
+    from src.miappe_packaging.base import Base
 
 
 def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> None:
@@ -21,20 +29,20 @@ def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> N
 
 
 @overload
-def struct_to_graph(
+def from_struct(
     *,
     struct: Any,
     graph: Graph,
     schema: Schema | None = None,
 ) -> Graph: ...
 @overload
-def struct_to_graph(
+def from_struct(
     *,
     struct: Any,
     schema: Schema | None = None,
     identifier: IdentifiedNode | str | None = None,
 ) -> Graph: ...
-def struct_to_graph(
+def from_struct(
     *,
     struct: Any,
     schema: Schema | None = None,
@@ -77,3 +85,22 @@ def sub_graph(graph: Graph, identifier: IdentifiedNode | str) -> Graph:
     for pred, obj in tuples:
         sub.add((identifier, pred, obj))
     return sub
+
+
+def to_struct(
+    graph: Graph,
+    identifier: IdentifiedNode | str,
+    model_cls: type[Base],
+    schema: Schema | None = None,
+) -> Base:
+    if not schema:
+        schema = model_cls.__schema__
+
+    stmts = graph.predicate_objects(subject=URIRef(identifier))
+    kwargs = {"id": identifier}
+    for ref, value in stmts:
+        if ref != RDF.type:
+            attr = schema.ref_mapping[ref]
+            kwargs[attr] = value
+    data_kwargs = msgspec.json.encode(kwargs, enc_hook=enc_hook)
+    return msgspec.json.decode(data_kwargs, type=model_cls)

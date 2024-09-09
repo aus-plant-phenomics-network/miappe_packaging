@@ -7,7 +7,7 @@ from msgspec import field
 from rdflib import IdentifiedNode
 from rdflib.namespace import FOAF, XSD
 
-import src.miappe_packaging.converter as Converter
+import src.miappe_packaging.graph as Converter
 from src.miappe_packaging.base import Base
 from src.miappe_packaging.registry import Registry
 from src.miappe_packaging.types import FieldInfo, IDRef, Schema
@@ -58,4 +58,47 @@ Sally = Person(
 
 registry = Registry()
 registry.serialize(destination="FOAF.json", context={"foaf": FOAF._NS})
+
+# %%
+from __future__ import annotations
+
+import datetime
+
+from msgspec import field
+from rdflib import IdentifiedNode
+from rdflib.namespace import FOAF, XSD
+
+import src.miappe_packaging.graph as Converter
+from src.miappe_packaging.base import Base
+from src.miappe_packaging.registry import Registry
+from src.miappe_packaging.types import FieldInfo, IDRef, Schema
+
+PersonSchema = Schema(
+    rdf_resource=FOAF.Person,
+    attrs={
+        "firstName": FieldInfo(ref=FOAF.firstName),
+        "lastName": FieldInfo(ref=FOAF.lastName),
+        "knows": FieldInfo(ref=FOAF.knows, range=IDRef(ref=FOAF.Person)),
+        "age": FieldInfo(ref=FOAF.age),
+        "birthday": FieldInfo(ref=FOAF.birthday),
+        "email": FieldInfo(ref=FOAF.mbox),
+    },
+)
+
+
+class Person(Base):
+    __schema__ = PersonSchema
+
+    firstName: str
+    lastName: str
+    age: int
+    birthday: datetime.date
+    email: str
+    knows: str | list[str] = field(default_factory=list)
+
+
+registry = Registry()
+registry.graph.parse("FOAF.json")
+Harry = Converter.to_struct(registry.graph, "http://example.org/Harry", Person)
+
 # %%

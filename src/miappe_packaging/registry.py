@@ -4,11 +4,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 from rdflib import Graph, IdentifiedNode, URIRef
-from rdflib.namespace import NamespaceManager
-from rdflib.store import Store
 
-from src.miappe_packaging.converter import struct_to_graph
 from src.miappe_packaging.exceptions import IdError
+from src.miappe_packaging.graph import from_struct
 
 if TYPE_CHECKING:
     from src.miappe_packaging.base import Base
@@ -44,7 +42,7 @@ class Registry:
     def add_all(self) -> None:
         for _, id_map in self.instance_dict.items():
             for _, struct in id_map.items():
-                struct_to_graph(struct=struct, graph=self._graph)
+                from_struct(struct=struct, graph=self._graph)
 
     @overload
     def serialize(

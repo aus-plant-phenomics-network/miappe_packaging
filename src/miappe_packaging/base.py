@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar, Final
 
 from msgspec import Struct, field
 from rdflib import BNode, IdentifiedNode
 
-from src.miappe_packaging.exceptions import AnnotationError, IdError, MissingSchema
+from src.miappe_packaging.exceptions import AnnotationError, MissingSchema
 from src.miappe_packaging.registry import Registry
+from src.miappe_packaging.types import Schema
 from src.miappe_packaging.utils import convert_to_ref, validate_schema
-
-if TYPE_CHECKING:
-    from src.miappe_packaging.types import Schema
 
 
 class Base(Struct, kw_only=True):
@@ -19,7 +17,7 @@ class Base(Struct, kw_only=True):
     Can be treated as a simple Python dataclass object.
     """
 
-    id: IdentifiedNode | str = field(default_factory=BNode)
+    id: str = field(default_factory=BNode)
     """Instance ID. If not provided, will be assigned a blank node ID"""
     __schema__: ClassVar[Schema]
     """Schema object. Class attribute"""
