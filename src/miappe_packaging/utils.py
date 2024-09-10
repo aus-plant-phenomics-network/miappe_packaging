@@ -7,8 +7,7 @@ from rdflib import BNode, IdentifiedNode, URIRef
 from src.miappe_packaging.exceptions import AnnotationError
 
 if TYPE_CHECKING:
-    from src.miappe_packaging.base import Base
-    from src.miappe_packaging.types import Schema
+    from src.miappe_packaging.base import Schema
 
 T = TypeVar("T")
 P = ParamSpec("P")

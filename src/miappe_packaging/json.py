@@ -1,8 +1,6 @@
-from typing import Any
+from typing import Any, Type
 
-from rdflib import IdentifiedNode, Literal
-
-from src.miappe_packaging.types import Schema
+from rdflib import IdentifiedNode, Literal, URIRef
 
 
 def enc_hook(obj: Any) -> Any:
@@ -11,3 +9,8 @@ def enc_hook(obj: Any) -> Any:
     if isinstance(obj, IdentifiedNode):
         return obj.toPython()
     raise TypeError(f"Invalid encoding type: {type(obj)}")
+
+
+def dec_hook(type: Type, obj: Any) -> Any:
+    if type is IdentifiedNode:
+        return URIRef(obj)

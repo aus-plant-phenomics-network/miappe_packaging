@@ -3,13 +3,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, overload
 
 import msgspec
-from rdflib import Graph, IdentifiedNode, Literal, URIRef
+from rdflib import Graph, IdentifiedNode, URIRef
 from rdflib.extras.describer import Describer
 from rdflib.namespace import RDF
 
 from src.miappe_packaging.exceptions import MissingSchema
 from src.miappe_packaging.json import enc_hook
-from src.miappe_packaging.types import FieldInfo, IDRef, Schema
+from src.miappe_packaging.base import Schema, FieldInfo, IDRef
 from src.miappe_packaging.utils import convert_to_ref, validate_schema
 
 if TYPE_CHECKING:
@@ -72,7 +72,7 @@ def from_struct(
     if graph is None:
         graph = Graph(identifier=convert_to_ref(identifier))
     describer = Describer(graph=graph, about=struct.ID)
-    describer.rdftype(schema.rdf_resource)
+    describer.rdftype(schema.__rdf_resource__)
     for name, info in schema.name_mapping.items():
         value = getattr(struct, name)
         _describer_add_value(describer, value, info)
@@ -97,10 +97,10 @@ def to_struct(
         schema = model_cls.__schema__
 
     stmts = graph.predicate_objects(subject=URIRef(identifier))
-    kwargs = {"id": identifier}
+    kwargs = {}
     for ref, value in stmts:
         if ref != RDF.type:
             attr = schema.ref_mapping[ref]
             kwargs[attr] = value
-    data_kwargs = msgspec.json.encode(kwargs, enc_hook=enc_hook)
-    return msgspec.json.decode(data_kwargs, type=model_cls)
+    data_kwargs = msgspec.to_builtins(kwargs, enc_hook=enc_hook)
+    return msgspec.from_builtins(data_kwargs, type=model_cls)

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload, Type, TypedDict
 
 from rdflib import Graph, IdentifiedNode, URIRef
-
+from collections.abc import Sequence
 from src.miappe_packaging.exceptions import IdError
 from src.miappe_packaging.graph import from_struct
 
@@ -35,14 +35,21 @@ class Registry:
         if rdf_resource not in self.instance_dict:
             self.instance_dict[rdf_resource] = dict()
         # add to instance dict
-        if instance.ID in self.instance_dict[rdf_resource]:
-            raise IdError("ID already exists in registry")
+        # if instance.ID in self.instance_dict[rdf_resource]:
+        #     raise IdError("ID already exists in registry")
         self.instance_dict[rdf_resource][instance.ID] = instance
 
     def add_all(self) -> None:
         for _, id_map in self.instance_dict.items():
             for _, struct in id_map.items():
                 from_struct(struct=struct, graph=self._graph)
+
+    def add(self, graph: Graph | Sequence[Graph]) -> None:
+        if isinstance(graph, Graph):
+            self._graph = self.graph + graph
+        else:
+            for g in graph:
+                self._graph = self.graph + g
 
     @overload
     def serialize(
