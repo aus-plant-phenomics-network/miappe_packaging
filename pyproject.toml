@@ -22,3 +22,6 @@ distribution = false
 jupyter = [
     "ipykernel>=6.29.5",
 ]
+test = [
+    "pytest>=8.3.2",
+]

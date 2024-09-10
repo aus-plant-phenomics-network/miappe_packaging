@@ -1,86 +1,20 @@
 from __future__ import annotations
 
-from typing import ClassVar, Type, Any, get_args, get_origin
-from collections.abc import Sequence, Set, Mapping
-from msgspec import Struct, Meta, field, UnsetType, UNSET
-from rdflib import BNode, IdentifiedNode, URIRef
-from rdflib.namespace import XSD
-import datetime
-from types import NoneType
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any, ClassVar, Literal, overload
+
+from msgspec import Struct, field
+from rdflib import BNode, Graph, IdentifiedNode, Namespace, URIRef
+
 from src.miappe_packaging.exceptions import AnnotationError
-from src.miappe_packaging.utils import convert_to_ref, validate_schema
-
-
-XSD_TO_PYTHON: dict[URIRef | Type, tuple[Type, Meta | None]] = {
-    XSD.base64Binary: (bytes, None),
-    XSD.boolean: (bool, None),
-    XSD.byte: (bytes, None),
-    XSD.date: (datetime.date, None),
-    XSD.dateTime: (datetime.datetime, None),
-    XSD.dateTimeStamp: (datetime.datetime, Meta(tz=True)),
-    XSD.decimal: (float,),
-    XSD.double: (float,),
-    XSD.duration: (datetime.timedelta),
-    XSD.float: (float,),
-    XSD.int: (int,),
-    XSD.integer: (int,),
-    XSD.long: (int,),
-    XSD.short: (int,),
-    XSD.negativeInteger: (int, Meta(lt=0)),
-    XSD.nonNegativeInteger: (int, Meta(ge=0)),
-    XSD.nonPositiveInteger: (int, Meta(le=0)),
-    XSD.positiveInteger: (int, Meta(gt=0)),
-    XSD.time: (datetime.time,),
-    XSD.string: (str,),
-}
-
-PYTHON_TO_XSD: dict[Type, URIRef] = {
-    datetime.date: XSD.date,
-    datetime.time: XSD.time,
-    datetime.datetime: XSD.dateTime,
-    str: XSD.string,
-    int: XSD.integer,
-    float: XSD.float,
-    bytes: XSD.byte,
-    bool: XSD.boolean,
-    Any: XSD.string,
-    None: None,
-}
-
-
-class IDRef(Struct):
-    ref: URIRef
-
-
-class FieldInfo(Struct):
-    ref: URIRef
-    range: URIRef | IDRef | None = None
-    repeat: bool = False
-    required: bool = True
-    meta: Meta | None = None
-
-
-class Schema(Struct):
-    __rdf_resource__: URIRef
-    attrs: dict[str, FieldInfo]
-
-    @property
-    def name_mapping(self) -> dict[str, FieldInfo]:
-        """Mapping from name to field information
-
-        Returns:
-            dict[str, FieldInfo]: returned object
-        """
-        return self.attrs
-
-    @property
-    def ref_mapping(self) -> dict[URIRef, str]:
-        """Mapping from field reference to field name
-
-        Returns:
-            dict[URIRef, str]: returned object
-        """
-        return {item.ref: name for name, item in self.attrs.items()}
+from src.miappe_packaging.graph import from_struct
+from src.miappe_packaging.schema import FieldInfo, Schema
+from src.miappe_packaging.utils import (
+    convert_to_ref,
+    field_info_from_annotations,
+    validate_schema,
+)
 
 
 class LinkedDataClass(Struct, kw_only=True):
@@ -94,7 +28,7 @@ class LinkedDataClass(Struct, kw_only=True):
     __schema__: ClassVar[Schema]
     """Schema object. Class attribute"""
     __rdf_resource__: ClassVar[URIRef]
-    __rdf_context__: ClassVar[URIRef] = URIRef("./")
+    __rdf_context__: ClassVar[URIRef | Namespace] = URIRef("./")
 
     @property
     def ID(self) -> IdentifiedNode:
@@ -105,6 +39,9 @@ class LinkedDataClass(Struct, kw_only=True):
             IdentifiedNode: id of current object.
         """
         return convert_to_ref(self.id)
+
+    def __post_init__(self) -> None:
+        Registry().register(self)
 
     def __init_subclass__(cls) -> None:
         # Validate schema if schema is not provided
@@ -146,53 +83,91 @@ class LinkedDataClass(Struct, kw_only=True):
         return super().__init_subclass__()
 
 
-def field_info_from_annotations(
-    field_name: str,
-    class_name: str,
-    annotation: Any,
-    context: URIRef,
-) -> FieldInfo:
-    kwargs = {
-        "ref": context + field_name,  # Set to field name
-        "range": None,  # Obtained from PYTHON_TO_XSD dict
-        "required": True,  # Set to False if type is Optional
-        "repeat": False,  # Set to True if origin is list or tuple
-    }
-    if hasattr(annotation, "__args__"):
-        base_type = set()
-        for tp in get_args(annotation):
-            if hasattr(tp, "__args__"):
-                base_type.update(get_args(tp))
-            else:
-                base_type.add(tp)
-        origins = {
-            get_origin(tp) for tp in get_args(annotation) if hasattr(tp, "__origin__")
-        }
-        for origin in origins:
-            if issubclass(origin, Sequence) or issubclass(origin, Set):
-                kwargs["repeat"] = True
-                continue
-            if issubclass(origin, Mapping):
-                raise TypeError(
-                    f"Auto-annotated does not support mapping type. Type: {origin} is not supported. Class: {class_name}, field: {field_name}"
-                )
-        if len(base_type) >= 2 and NoneType not in base_type:
-            raise AnnotationError(
-                f"Composite type accepts a base type and a NoneType only. Class: {class_name}, field: {field_name}"
-            )
-        for tp in base_type:
-            if tp is NoneType:
-                kwargs["required"] = False
-                continue
-            if tp not in PYTHON_TO_XSD:
-                raise TypeError(
-                    f"Auto-annotation supports only common base type. Type: {tp} is not supported. Class: {class_name}, field: {field_name}"
-                )
-            kwargs["range"] = PYTHON_TO_XSD[tp]
-    else:  # Not a parameterized type
-        if annotation not in PYTHON_TO_XSD:
-            raise TypeError(
-                f"Auto-annotation supports only common base type. Type: {annotation} is not supported. Class: {class_name}, field: {field_name}"
-            )
-        kwargs["range"] = PYTHON_TO_XSD[annotation]
-    return FieldInfo(**kwargs)
+class Registry:
+    _instance = None
+    type_dict: dict[URIRef, type[LinkedDataClass]] = dict()
+    instance_dict: dict[URIRef, dict[IdentifiedNode, LinkedDataClass]] = dict()
+    _graph = Graph()
+
+    @property
+    def graph(self) -> Graph:
+        return self._graph
+
+    def __new__(self, *args, **kwargs):
+        if not self._instance:
+            self._instance = super().__new__(self, *args, **kwargs)
+        return self._instance
+
+    def register(self, instance: LinkedDataClass) -> None:
+        rdf_resource = instance.__schema__.__rdf_resource__
+        # add to type dict
+        if type(instance) not in self.type_dict:
+            self.type_dict[rdf_resource] = instance.__class__
+        if rdf_resource not in self.instance_dict:
+            self.instance_dict[rdf_resource] = dict()
+        # add to instance dict
+        self.instance_dict[rdf_resource][instance.ID] = instance
+
+    def add_all(self) -> None:
+        for _, id_map in self.instance_dict.items():
+            for _, struct in id_map.items():
+                from_struct(struct=struct, graph=self._graph)
+
+    def add(self, graph: Graph | Sequence[Graph]) -> None:
+        if isinstance(graph, Graph):
+            self._graph = self.graph + graph
+        else:
+            for g in graph:
+                self._graph = self.graph + g
+
+    @overload
+    def serialize(
+        self,
+        destination: str | Path,
+        *,
+        base: str | None = None,
+        encoding: str | None = None,
+        context: dict[str, URIRef] | None = None,
+        use_native_types: bool = False,
+        use_rdf_type: bool = False,
+        auto_compact: bool = False,
+        indent: int = 2,
+        separators: tuple[str, str] = (",", ":"),
+        sort_keys: bool = True,
+        ensure_ascii: bool = False,
+    ) -> None: ...
+    @overload
+    def serialize(
+        self,
+        destination: str | Path,
+        *,
+        format: Literal[
+            "json-ld", "turtle", "xml", "pretty-xml", "n3", "nt", "trix"
+        ] = "json-ld",
+        base: str | None = None,
+        encoding: str | None = None,
+        **args: Any,
+    ) -> None: ...
+    def serialize(
+        self,
+        destination: str | Path,
+        *,
+        format: Literal[
+            "json-ld", "turtle", "xml", "pretty-xml", "n3", "nt", "trix"
+        ] = "json-ld",
+        base: str | None = None,
+        encoding: str | None = None,
+        **args: Any,
+    ) -> None:
+        """Write to file for persistency.
+
+        Before the underlying graph is serialised, all semantic objects are first added to the graph
+
+        Args:
+            destination (str | Path): file path
+            format (TypingLiteral[ &quot;json, optional): supported serialisation formats. Defaults to "json-ld".
+        """
+        self.add_all()
+        self._graph.serialize(
+            destination=destination, format=format, base=base, encoding=encoding, **args
+        )

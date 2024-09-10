@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, Type, overload
 
 import msgspec
-from rdflib import Graph, IdentifiedNode, URIRef
+from rdflib import Graph, IdentifiedNode, Literal, URIRef
 from rdflib.extras.describer import Describer
 from rdflib.namespace import RDF
 
 from src.miappe_packaging.exceptions import MissingSchema
-from src.miappe_packaging.json import enc_hook
-from src.miappe_packaging.base import Schema, FieldInfo, IDRef
+from src.miappe_packaging.schema import FieldInfo, IDRef, Schema
 from src.miappe_packaging.utils import convert_to_ref, validate_schema
 
 if TYPE_CHECKING:
-    from src.miappe_packaging.base import Base
+    from src.miappe_packaging.base import LinkedDataClass
 
 
 def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> None:
@@ -26,6 +25,19 @@ def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> N
                 describer.rel(info.ref, value)
             else:
                 describer.value(info.ref, value, datatype=info.range)
+
+
+def enc_hook(obj: Any) -> Any:
+    if isinstance(obj, Literal):
+        return obj.toPython()
+    if isinstance(obj, IdentifiedNode):
+        return obj.toPython()
+    raise TypeError(f"Invalid encoding type: {type(obj)}")
+
+
+def dec_hook(type: Type, obj: Any) -> Any:
+    if type is IdentifiedNode:
+        return URIRef(str(obj))
 
 
 @overload
@@ -52,7 +64,7 @@ def from_struct(
     """Convert a semantic object instance to an rdflib Graph (set of rdf statements)
 
     Args:
-        struct (Base): semantic class instance
+        struct (LinkedDataClass): semantic class instance
         schema (Schema | None, optional): schema for conversion. If not provided, will use the object __schema__.
         graph (Graph | None, optional): if provided, will use this graph to add rdf nodes.
         identifier (IdentifiedNode | str | None, optional): graph identifier. Will use a blank node value if not provided.
@@ -90,17 +102,23 @@ def sub_graph(graph: Graph, identifier: IdentifiedNode | str) -> Graph:
 def to_struct(
     graph: Graph,
     identifier: IdentifiedNode | str,
-    model_cls: type[Base],
+    model_cls: type[LinkedDataClass],
     schema: Schema | None = None,
-) -> Base:
+) -> LinkedDataClass:
     if not schema:
         schema = model_cls.__schema__
-
-    stmts = graph.predicate_objects(subject=URIRef(identifier))
+    identifier = convert_to_ref(identifier)
+    stmts = graph.predicate_objects(subject=identifier)
     kwargs = {}
     for ref, value in stmts:
         if ref != RDF.type:
             attr = schema.ref_mapping[ref]
-            kwargs[attr] = value
+            if schema.attrs[attr].repeat:
+                if hasattr(value, "__len__") and not isinstance(value, str):
+                    kwargs[attr] = value
+                else:
+                    kwargs[attr] = [value]
+            else:
+                kwargs[attr] = value
     data_kwargs = msgspec.to_builtins(kwargs, enc_hook=enc_hook)
     return msgspec.from_builtins(data_kwargs, type=model_cls)
