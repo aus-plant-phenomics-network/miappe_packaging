@@ -169,7 +169,7 @@ def test_get_field_info_sequence(annotation: Type, info: FieldInfo) -> None:
         (int | str | float | None),
     ],
 )
-def test_get_field_info_expects_error_composite_type(annotation: Type) -> None:
+def test_get_field_info_composite_type_raises(annotation: Type) -> None:
     with pytest.raises(TypeError):
         field_info_from_annotations(
             field_name="name",
@@ -179,7 +179,7 @@ def test_get_field_info_expects_error_composite_type(annotation: Type) -> None:
         )
 
 
-def test_get_field_info_expects_error_dict_type() -> None:
+def test_get_field_info_dict_type_raises() -> None:
     with pytest.raises(TypeError):
         field_info_from_annotations(
             field_name="name",
@@ -199,7 +199,7 @@ def test_get_field_info_expects_error_dict_type() -> None:
         (set[ThirdPartyType]),
     ],
 )
-def test_get_field_info_expects_error_non_base_type(annotation: Type) -> None:
+def test_get_field_info_non_base_type_raises(annotation: Type) -> None:
     with pytest.raises(TypeError):
         field_info_from_annotations(
             field_name="name",
@@ -241,7 +241,7 @@ def test_make_ref(ref: str | IdentifiedNode, exp: URIRef) -> None:
 
 
 @pytest.mark.parametrize("ref", [(1.0), ([1, 2, 3])])
-def test_invalid_make_ref(ref: Any) -> None:
+def test_invalid_make_ref_raises(ref: Any) -> None:
     with pytest.raises(TypeError):
         make_ref(ref)
 
@@ -267,7 +267,7 @@ def test_validate_schema_valid() -> None:
         raise
 
 
-def test_validate_schema_invalid_missing_fields() -> None:
+def test_validate_schema_invalid_missing_fields_raises() -> None:
     @dataclass
     class Person:
         first_name: str
@@ -292,7 +292,7 @@ def test_validate_schema_invalid_missing_fields() -> None:
     [
         (Obama, "ID"),
         (ObamaDict, "id"),
-        (ObamaTypedDict, "birthdate"),
+        (ObamaTypedDict, "birthday"),
         (ObamaDataClass, "firstName"),
         (ObamaNamedTuple, "knows"),
     ],
@@ -307,7 +307,7 @@ def test_get_key_or_attribute(instance: Any, name: str) -> None:
     [
         (Obama, "IDx"),
         (ObamaDict, "idx"),
-        (ObamaTypedDict, "birthdatex"),
+        (ObamaTypedDict, "birthdayx"),
         (ObamaDataClass, "firstNamex"),
         (ObamaNamedTuple, "knowsx"),
     ],
@@ -322,12 +322,12 @@ def test_get_key_or_attribute_no_raise(instance: Any, name: str) -> None:
     [
         (Obama, "IDx"),
         (ObamaDict, "idx"),
-        (ObamaTypedDict, "birthdatex"),
+        (ObamaTypedDict, "birthdayx"),
         (ObamaDataClass, "firstNamex"),
         (ObamaNamedTuple, "knowsx"),
     ],
 )
-def test_get_key_or_attribute_raise(instance: Any, name: str) -> None:
+def test_get_key_or_attribute_raises(instance: Any, name: str) -> None:
     with pytest.raises(KeyError):
         get_key_or_attribute(name, instance, raise_error_if_missing=True)
 

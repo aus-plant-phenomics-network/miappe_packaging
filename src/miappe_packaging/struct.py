@@ -167,7 +167,7 @@ class Registry:
     ) -> None:
         """Write to file for persistency.
 
-        Before the underlying graph is serialised, all semantic objects are first added to the graph
+        Before the underlying graph is serialised, all LinkedDataClasss are first added to the graph
 
         Args:
             destination (str | Path): file path

@@ -16,7 +16,7 @@ class Person(LinkedDataClass):
     __rdf_context__ = FOAF._NS
     firstName: str
     lastName: str
-    birthdate: datetime.date
+    birthday: datetime.date
     mbox: str | None = None
     knows: Annotated[
         list[str],
@@ -45,7 +45,7 @@ Obama = Person(
     id=ID_POOL["BarrackObama"],
     firstName="Barrack",
     lastName="Obama",
-    birthdate=datetime.datetime(1961, 8, 4),
+    birthday=datetime.datetime(1961, 8, 4),
     knows=[ID_POOL["JoeBiden"], ID_POOL["BillClinton"]],
 )
 
@@ -53,7 +53,7 @@ Biden = Person(
     id=ID_POOL["JoeBiden"],
     firstName="Joe",
     lastName="Biden",
-    birthdate=datetime.date(1942, 11, 20),
+    birthday=datetime.date(1942, 11, 20),
     knows=[ID_POOL["BarrackObama"]],
 )
 
@@ -61,7 +61,7 @@ Clinton = Person(
     id=ID_POOL["BillClinton"],
     firstName="Bill",
     lastName="Clinton",
-    birthdate=datetime.datetime(1946, 8, 19),
+    birthday=datetime.datetime(1946, 8, 19),
     knows=[ID_POOL["AlGore"], ID_POOL["BarrackObama"]],
 )
 
@@ -69,7 +69,7 @@ AlGore = Person(
     id=ID_POOL["AlGore"],
     firstName="Al",
     lastName="Gore",
-    birthdate=datetime.datetime(1948, 3, 31),
+    birthday=datetime.datetime(1948, 3, 31),
     knows=[ID_POOL["BillClinton"]],
 )
 

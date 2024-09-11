@@ -6,7 +6,7 @@ This package provides a set of APIs to define many aspects of a project in a way
 
 ## Design
 
-Each Python semantic class defines a schema for a particular resource (`rdfs:Resource`). The resource type information is stored using the special attribute [`__rdf_resource__`](#__rdf_resource__). Each instance of a semantic class has an [`id`](#id) that uniquely identify any instance of a resource within the graph. 
+Each Python LinkedDataClass defines a schema for a particular resource (`rdfs:Resource`). The resource type information is stored using the special attribute [`__rdf_resource__`](#__rdf_resource__). Each instance of a LinkedDataClass has an [`id`](#id) that uniquely identify any instance of a resource within the graph. 
 
 The attributes of a sementic class define a property (`rdf:Property`) and will by default have `__rdf_resource__` as its domain. 
 
@@ -20,7 +20,7 @@ Represents the identifier for a resource instance. id values can be supplied by 
 
 ### `__rdf_resource__`
 
-`__rdf_resource__` is a read-only class attribute that describes the type of a resource instance. For any instance of a semantic class, this information will be serialised as `(id, rdf.type, __rdf_resource)`.
+`__rdf_resource__` is a read-only class attribute that describes the type of a resource instance. For any instance of a LinkedDataClass, this information will be serialised as `(id, rdf.type, __rdf_resource)`.
 
 
 ## MIAPPE Schema Language

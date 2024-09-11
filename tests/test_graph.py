@@ -1,34 +1,47 @@
+from operator import itemgetter
 from typing import Any
 
 import pytest
-from rdflib import Graph, URIRef
+from rdflib import Graph, Literal, URIRef
 from rdflib.compare import to_isomorphic
-from rdflib.namespace import RDF
+from rdflib.graph import _ObjectType, _PredicateType
+from rdflib.namespace import FOAF, RDF
 
-from src.miappe_packaging.exceptions import MissingSchema
+from src.miappe_packaging.exceptions import AnnotationError, MissingSchema
 from src.miappe_packaging.graph import (
     from_struct,
     get_subjects,
     sub_graph,
     to_builtin,
     to_struct,
+    update_attrs_from_stmt,
 )
 from src.miappe_packaging.schema import Schema
 from src.miappe_packaging.struct import LinkedDataClass
 from tests.fixture import (
-    ID_POOL,
     AlGore,
+    AlGoreDict,
+    AlGoreRawDict,
     Biden,
+    BidenDict,
+    BidenRawDict,
     Clinton,
+    ClintonDict,
+    ClintonRawDict,
     Group,
     Obama,
     ObamaDataClass,
     ObamaDict,
     ObamaNamedTuple,
+    ObamaRawDict,
     ObamaTypedDict,
     Person,
     Presidents,
+    PresidentsDict,
+    PresidentsRawDict,
     VicePresidents,
+    VicePresidentsDict,
+    VicePresidentsRawDict,
 )
 
 ObamaGraph = from_struct(struct=Obama)
@@ -156,7 +169,7 @@ def test_sub_graph(
     assert to_isomorphic(sub_graph(base, second.ID)) == to_isomorphic(secondGraph)
 
 
-def test_subgraph_id_not_exists() -> None:
+def test_subgraph_id_not_exist_raises() -> None:
     with pytest.raises(ValueError):
         sub_graph(ObamaGraph, Biden.ID)
 
@@ -177,3 +190,245 @@ def test_subgraph_id_not_exists() -> None:
 def test_graph_get_subjects(graph: Graph, subject: set[URIRef]) -> None:
     graph_subjects = get_subjects(graph)
     assert graph_subjects == subject
+
+
+@pytest.mark.parametrize(
+    "graph, identifier, subject",
+    [
+        (ObamaGraph, Obama.ID, set([Obama.ID])),
+        (ObamaGraph + ClintonGraph, Clinton.ID, set([Clinton.ID])),
+        (PresidentsGraph, Presidents.ID, set([Presidents.ID])),
+        (ClintonGraph + ObamaGraph, Obama.ID, set([Obama.ID])),
+        (
+            ClintonGraph + ObamaGraph + PresidentsGraph + VicePresidentsGraph,
+            VicePresidents.ID,
+            set([VicePresidents.ID]),
+        ),
+    ],
+)
+def test_graph_get_subjects_with_identifier(
+    graph: Graph, identifier: URIRef, subject: set[URIRef]
+) -> None:
+    graph_subjects = get_subjects(graph, identifier=identifier)
+    assert graph_subjects == subject
+
+
+@pytest.mark.parametrize(
+    "graph, schema, subject",
+    [
+        (ObamaGraph, Presidents.__schema__, set()),
+        (ObamaGraph, Obama.__schema__, set([Obama.ID])),
+        (ObamaGraph + ClintonGraph, Obama.__schema__, set([Clinton.ID, Obama.ID])),
+        (
+            PresidentsGraph + VicePresidentsGraph,
+            Presidents.__schema__,
+            set([Presidents.ID, VicePresidents.ID]),
+        ),
+        (
+            ClintonGraph + ObamaGraph + PresidentsGraph + VicePresidentsGraph,
+            Obama.__schema__,
+            set([Obama.ID, Clinton.ID]),
+        ),
+        (
+            ClintonGraph + ObamaGraph + PresidentsGraph + VicePresidentsGraph,
+            VicePresidents.__schema__,
+            set([Presidents.ID, VicePresidents.ID]),
+        ),
+    ],
+)
+def test_graph_get_subjects_with_schema(
+    graph: Graph, schema: Schema, subject: set[URIRef]
+) -> None:
+    graph_subjects = get_subjects(graph, schema=schema)
+    assert graph_subjects == subject
+
+
+@pytest.mark.parametrize(
+    "graph, identifier, schema, subject",
+    [
+        (ObamaGraph, Obama.ID, Obama.__schema__, set([Obama.ID])),
+        (ObamaGraph + ClintonGraph, Obama.ID, Obama.__schema__, set([Obama.ID])),
+        (ObamaGraph + ClintonGraph, Clinton.ID, Obama.__schema__, set([Clinton.ID])),
+        (
+            PresidentsGraph + VicePresidentsGraph,
+            Presidents.ID,
+            Presidents.__schema__,
+            set([Presidents.ID]),
+        ),
+        (
+            ClintonGraph + ObamaGraph + PresidentsGraph + VicePresidentsGraph,
+            Obama.ID,
+            Obama.__schema__,
+            set([Obama.ID]),
+        ),
+        (
+            ClintonGraph + ObamaGraph + PresidentsGraph + VicePresidentsGraph,
+            Presidents.ID,
+            VicePresidents.__schema__,
+            set([Presidents.ID]),
+        ),
+    ],
+)
+def test_graph_get_subjects_with_schema_and_identifier(
+    graph: Graph, identifier: URIRef, schema: Schema, subject: set[URIRef]
+) -> None:
+    graph_subjects = get_subjects(graph, schema=schema, identifier=identifier)
+    assert graph_subjects == subject
+
+
+@pytest.mark.parametrize(
+    "graph, identifier",
+    [
+        (ObamaGraph, Biden.ID),
+        (BidenGraph, Presidents.ID),
+        (ObamaGraph + BidenGraph, Clinton.ID),
+        (ObamaGraph + BidenGraph, Presidents.ID),
+    ],
+)
+def test_graph_get_subjects_with_identifier_not_in_graph_raises(
+    graph: Graph, identifier: URIRef
+) -> None:
+    with pytest.raises(ValueError):
+        get_subjects(graph=graph, identifier=identifier)
+
+
+@pytest.mark.parametrize(
+    "graph, identifier, schema",
+    [
+        (ObamaGraph, Biden.ID, Obama.__schema__),
+        (BidenGraph, Biden.ID, Presidents.__schema__),
+        (ObamaGraph + BidenGraph, Clinton.ID, Obama.__schema__),
+        (ObamaGraph + BidenGraph, Presidents.ID, Presidents.__schema__),
+    ],
+)
+def test_graph_get_subjects_with_identifier_schema_not_in_graph_raises(
+    graph: Graph, identifier: URIRef, schema: Schema
+) -> None:
+    with pytest.raises(ValueError):
+        get_subjects(graph=graph, identifier=identifier, schema=schema)
+
+
+@pytest.mark.parametrize(
+    "pred, value, attrs, schema, exp_attrs",
+    [
+        (RDF.type, Obama.__schema__.__rdf_resource__, {}, None, {}),
+        (
+            FOAF.firstName,
+            Literal(Obama.firstName),
+            {},
+            None,
+            {FOAF.firstName: Literal(Obama.firstName)},
+        ),
+        (
+            FOAF.knows,
+            Obama.ID,
+            {FOAF.knows: Biden.ID},
+            None,
+            {FOAF.knows: [Biden.ID, Obama.ID]},
+        ),
+        (
+            FOAF.birthday,
+            Literal(Obama.birthday),
+            {FOAF.knows: Biden.ID},
+            None,
+            {
+                FOAF.knows: Biden.ID,
+                FOAF.birthday: Literal(Obama.birthday),
+            },
+        ),
+    ],
+)
+def test_update_attrs_with_schema(
+    pred: _PredicateType,
+    value: _ObjectType,
+    attrs: dict[str, Any],
+    schema: Schema | None,
+    exp_attrs: dict[str, Any],
+) -> None:
+    update_attrs_from_stmt(pred, value, attrs, schema)
+    assert attrs == exp_attrs
+
+
+@pytest.mark.parametrize(
+    "pred, value, attrs, schema, exp_attrs",
+    [
+        (RDF.type, Obama.__schema__.__rdf_resource__, {}, Obama.__schema__, {}),
+        (
+            FOAF.firstName,
+            Literal(Obama.firstName),
+            {},
+            Obama.__schema__,
+            {"firstName": Literal(Obama.firstName)},
+        ),
+        (
+            FOAF.knows,
+            Obama.ID,
+            {},
+            Obama.__schema__,
+            {"knows": [Obama.ID]},
+        ),
+        (
+            FOAF.knows,
+            Obama.ID,
+            {"knows": [Biden.ID]},
+            Obama.__schema__,
+            {"knows": [Biden.ID, Obama.ID]},
+        ),
+        (
+            FOAF.birthday,
+            Literal(Obama.birthday),
+            {"knows": [Biden.ID]},
+            Obama.__schema__,
+            {
+                "knows": [Biden.ID],
+                "birthday": Literal(Obama.birthday),
+            },
+        ),
+    ],
+)
+def test_update_attrs_no_schema(
+    pred: _PredicateType,
+    value: _ObjectType,
+    attrs: dict[str, Any],
+    schema: Schema | None,
+    exp_attrs: dict[str, Any],
+) -> None:
+    update_attrs_from_stmt(pred, value, attrs, schema)
+    assert attrs == exp_attrs
+
+
+@pytest.mark.parametrize(
+    "pred, value, attrs, schema",
+    [
+        (
+            FOAF.firstName,
+            Literal(Obama.firstName),
+            {"firstName": Literal(Biden.firstName)},
+            Obama.__schema__,
+        )
+    ],
+)
+def test_update_attrs_wrong_schema_raises(
+    pred: _PredicateType,
+    value: _ObjectType,
+    attrs: dict[str, Any],
+    schema: Schema | None,
+) -> None:
+    with pytest.raises(AnnotationError):
+        update_attrs_from_stmt(pred, value, attrs, schema)
+
+
+# TODO: Add tests for to built-in for different scenarios
+
+
+@pytest.mark.parametrize(
+    "graph, exp_attrs",
+    [
+        (ObamaGraph, [ObamaRawDict]),
+        (PresidentsGraph, [PresidentsRawDict]),
+    ],
+)
+def test_to_builtin_no_schema(graph: Graph, exp_attrs: list[dict[str, Any]]) -> None:
+    python_obj = to_builtin(graph=graph)
+    list_1, list_2 = [sorted(l, key=itemgetter("id")) for l in (python_obj, exp_attrs)]
+    assert list_1 == list_2

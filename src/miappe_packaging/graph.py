@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import datetime
 from typing import TYPE_CHECKING, Any, overload
 from typing import Literal as Literal
 
 import msgspec
 from rdflib import Graph, URIRef
 from rdflib.extras.describer import Describer
+from rdflib.graph import _ObjectType, _PredicateType
 from rdflib.namespace import RDF
 
-from src.miappe_packaging.exceptions import MissingSchema
+from src.miappe_packaging.exceptions import AnnotationError, MissingSchema
 from src.miappe_packaging.json import dec_hook, enc_hook
 from src.miappe_packaging.schema import FieldInfo, IDRef, Schema
 from src.miappe_packaging.utils import get_key_or_attribute, make_ref, validate_schema
@@ -103,10 +105,10 @@ def from_struct(
     graph: Graph | None = None,
     identifier: URIRef | str | None = None,
 ) -> Graph:
-    """Convert a semantic object instance to an rdflib Graph (set of rdf statements)
+    """Convert a LinkedDataClass instance to an rdflib Graph (set of rdf statements)
 
     Args:
-        struct (LinkedDataClass): semantic class instance
+        struct (LinkedDataClass): LinkedDataClass instance
         schema (Schema | None, optional): schema for conversion. If not provided, will use the object __schema__.
         graph (Graph | None, optional): if provided, will use this graph to add rdf nodes.
         identifier (URIRef | str | None, optional): graph identifier. Will use a blank node value if not provided.
@@ -142,9 +144,20 @@ def from_struct(
 
 
 def sub_graph(graph: Graph, identifier: URIRef | str) -> Graph:
-    subjects = graph.subjects(RDF.type)
+    """Obtain a subgraph from a graph whose subjects are identifier
+
+    Args:
+        graph (Graph): parent graph
+        identifier (URIRef | str): id of the subject
+
+    Raises:
+        ValueError: if the identifier is not a subject of the graph
+
+    Returns:
+        Graph: returned subgraph
+    """
     identifier = make_ref(identifier)
-    if identifier not in subjects:
+    if (identifier, None, None) not in graph:
         raise ValueError(f"Identifier {identifier} not present in graph")
     tuples = graph.predicate_objects(subject=identifier, unique=True)
     sub = Graph()
@@ -170,27 +183,55 @@ def to_builtin(
     schema: Schema | None = None,
 ) -> list[dict[str, Any]]:
     # Get subgraphs object ID
-    id_pool = get_subjects(graph, identifier, schema)
+    id_pool = get_subjects(
+        graph=graph,
+        identifier=identifier,
+        schema=schema,
+    )
     # Convert to builtin
     result = []
     for item in id_pool:
         item_attrs = {"id": str(item)}
         stmts = graph.predicate_objects(item, unique=True)
         for ref, value in stmts:
-            if ref != RDF.type:
-                if schema and ref in schema.attrs:
-                    attr = schema.ref_mapping[ref]
-                    if schema.attrs[attr].repeat:
-                        if hasattr(value, "__len__") and not isinstance(value, str):
-                            item_attrs[attr] = value
-                        else:
-                            item_attrs[attr] = [value]
-                    else:
-                        item_attrs[attr] = value
-                else:
-                    item_attrs[ref] = value
+            update_attrs_from_stmt(ref, value, item_attrs, schema)
         result.append(item_attrs)
-    return msgspec.to_builtins(result, enc_hook=enc_hook)
+    return msgspec.to_builtins(
+        result,
+        enc_hook=enc_hook,
+        builtin_types=(datetime.datetime, datetime.date, datetime.time),
+    )
+
+
+def update_attrs_from_stmt(
+    pred: _PredicateType,
+    value: _ObjectType,
+    attrs: dict[str, Any],
+    schema: Schema | None = None,
+) -> dict[str, Any]:
+    if pred == RDF.type:
+        return
+    if not schema:
+        if pred in attrs:
+            if not isinstance(attrs[pred], list):
+                attrs[pred] = [attrs[pred]]
+            attrs[pred].append(value)
+        else:
+            attrs[pred] = value
+    else:
+        pred = schema.ref_mapping[pred]
+        if schema.attrs[pred].repeat:
+            if pred in attrs:
+                attrs[pred].append(value)
+            else:
+                attrs[pred] = [value]
+        else:
+            if pred in attrs:
+                raise AnnotationError(
+                    f"Field: {pred} not annotated with repeat, but receives collection like value"
+                )
+            attrs[pred] = value
+    return attrs
 
 
 def to_struct(
