@@ -4,15 +4,18 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Literal, overload
 
+import msgspec
 from msgspec import Struct, field
-from rdflib import BNode, Graph, IdentifiedNode, Namespace, URIRef
+from rdflib import Graph, Namespace, URIRef
 
 from src.miappe_packaging.exceptions import AnnotationError
 from src.miappe_packaging.graph import from_struct
+from src.miappe_packaging.json import LinkedEncoder, enc_hook
 from src.miappe_packaging.schema import FieldInfo, Schema
 from src.miappe_packaging.utils import (
-    convert_to_ref,
+    bnode_factory,
     field_info_from_annotations,
+    make_ref,
     validate_schema,
 )
 
@@ -23,22 +26,25 @@ class LinkedDataClass(Struct, kw_only=True):
     Can be treated as a simple Python dataclass object.
     """
 
-    id: str = field(default_factory=BNode)
+    id: str = field(default_factory=bnode_factory)
     """Instance ID. If not provided, will be assigned a blank node ID"""
     __schema__: ClassVar[Schema]
     """Schema object. Class attribute"""
     __rdf_resource__: ClassVar[URIRef]
     __rdf_context__: ClassVar[URIRef | Namespace] = URIRef("./")
 
+    def encode(self, format: Literal["json", "builtin"] = "json") -> dict | bytes:
+        return encode_struct(self, format=format)
+
     @property
-    def ID(self) -> IdentifiedNode:
+    def ID(self) -> URIRef:
         """ID in rdflib Node format. String values are converted to URIRef using
         `rdflib.URIRef` callable. BNode and URIRef values are not modified.
 
         Returns:
-            IdentifiedNode: id of current object.
+            URIRef: id of current object.
         """
-        return convert_to_ref(self.id)
+        return make_ref(self.id)
 
     def __post_init__(self) -> None:
         Registry().register(self)
@@ -86,7 +92,7 @@ class LinkedDataClass(Struct, kw_only=True):
 class Registry:
     _instance = None
     type_dict: dict[URIRef, type[LinkedDataClass]] = dict()
-    instance_dict: dict[URIRef, dict[IdentifiedNode, LinkedDataClass]] = dict()
+    instance_dict: dict[URIRef, dict[URIRef, LinkedDataClass]] = dict()
     _graph = Graph()
 
     @property
@@ -171,3 +177,15 @@ class Registry:
         self._graph.serialize(
             destination=destination, format=format, base=base, encoding=encoding, **args
         )
+
+
+def encode_struct(
+    struct: object, format: Literal["json", "builtin"] = "json"
+) -> dict | bytes:
+    match format:
+        case "json":
+            return LinkedEncoder.encode(struct)
+        case "builtin":
+            return msgspec.to_builtins(struct, enc_hook=enc_hook)
+        case _:
+            raise TypeError(f"Invalid format: {format}")

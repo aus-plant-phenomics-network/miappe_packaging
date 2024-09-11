@@ -1,5 +1,5 @@
 {
-  "cSpell.words": ["FOAF", "miappe", "msgspec", "rdflib", "rdftype"],
+  "cSpell.words": ["bnode", "FOAF", "miappe", "msgspec", "rdflib", "rdftype"],
   "python.testing.pytestArgs": ["tests"],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true

@@ -13,7 +13,7 @@ from src.miappe_packaging.exceptions import AnnotationError
 from src.miappe_packaging.schema import FieldInfo
 
 if TYPE_CHECKING:
-    from src.miappe_packaging.base import Schema
+    from miappe_packaging.struct import Schema
 
 XSD_TO_PYTHON: dict[URIRef | Type, tuple[Type, Meta | None]] = {
     XSD.base64Binary: (bytes, None),
@@ -52,10 +52,30 @@ PYTHON_TO_XSD: dict[Type, URIRef] = {
 }
 
 
-def convert_to_ref(identifier: IdentifiedNode | str | None = None) -> IdentifiedNode:
+def bnode_factory() -> URIRef:
+    return URIRef("./localID/" + str(BNode()))
+
+
+def make_ref(identifier: IdentifiedNode | str | None = None) -> IdentifiedNode:
     if not identifier:
-        return BNode()
-    return identifier if isinstance(identifier, IdentifiedNode) else URIRef(identifier)
+        return bnode_factory()
+    if isinstance(identifier, BNode) and not identifier.startswith("./localID"):
+        return URIRef("./localID/" + identifier)
+    if isinstance(identifier, str):
+        return URIRef(identifier)
+    return URIRef(identifier)
+
+
+def get_key_or_attribute(
+    field: str, obj: Any, raise_error_if_missing: bool = False
+) -> Any:
+    if hasattr(obj, field):
+        return getattr(obj, field)
+    if isinstance(obj, dict) and field in obj:
+        return obj.get(field)
+    if raise_error_if_missing:
+        raise KeyError(f"Object has no key: {field}")
+    return None
 
 
 def validate_schema(obj: Any, schema: Schema) -> None:
@@ -68,7 +88,14 @@ def validate_schema(obj: Any, schema: Schema) -> None:
     Raises:
         AnnotationError: if there are keys in obj and not in schema and vice versa
     """
-    obj_fields = set(obj.__annotations__)
+    if isinstance(obj, dict):
+        obj_fields = set(obj.keys())
+    elif hasattr(obj, "__annotations__"):
+        obj_fields = set(obj.__annotations__)
+    else:
+        raise TypeError(
+            "object must either be a dictionary or a class with type annotation"
+        )
     schema_fields = set(schema.attrs.keys())
     obj_fields.discard("id")
     schema_fields.discard("id")

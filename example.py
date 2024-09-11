@@ -1,5 +1,5 @@
 # %%
-from src.miappe_packaging.base import LinkedDataClass
+from miappe_packaging.struct import LinkedDataClass
 from rdflib.namespace import XSD, FOAF
 from msgspec import field
 import datetime
