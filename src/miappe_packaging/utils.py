@@ -3,17 +3,14 @@ from __future__ import annotations
 import datetime
 from collections.abc import Mapping, Sequence, Set
 from types import NoneType
-from typing import TYPE_CHECKING, Any, Type, get_args, get_origin
+from typing import Any, Type, get_args, get_origin
 
 from msgspec import Meta
 from rdflib import BNode, IdentifiedNode, URIRef
 from rdflib.namespace import XSD
 
 from src.miappe_packaging.exceptions import AnnotationError
-from src.miappe_packaging.schema import FieldInfo
-
-if TYPE_CHECKING:
-    from miappe_packaging.struct import Schema
+from src.miappe_packaging.schema import FieldInfo, Schema
 
 XSD_TO_PYTHON: dict[URIRef | Type, tuple[Type, Meta | None]] = {
     XSD.base64Binary: (bytes, None),
@@ -59,11 +56,15 @@ def bnode_factory() -> URIRef:
 def make_ref(identifier: IdentifiedNode | str | None = None) -> IdentifiedNode:
     if not identifier:
         return bnode_factory()
-    if isinstance(identifier, BNode) and not identifier.startswith("./localID"):
-        return URIRef("./localID/" + identifier)
+    if isinstance(identifier, BNode):
+        if not identifier.startswith("./localID"):
+            return URIRef("./localID/" + identifier)
+        return URIRef(identifier)
+    if isinstance(identifier, URIRef):
+        return identifier
     if isinstance(identifier, str):
         return URIRef(identifier)
-    return URIRef(identifier)
+    raise TypeError(f"Invalid type: {type(identifier)}")
 
 
 def get_key_or_attribute(
@@ -88,6 +89,8 @@ def validate_schema(obj: Any, schema: Schema) -> None:
     Raises:
         AnnotationError: if there are keys in obj and not in schema and vice versa
     """
+    if schema is None:
+        raise ValueError("Schema must be provided")
     if isinstance(obj, dict):
         obj_fields = set(obj.keys())
     elif hasattr(obj, "__annotations__"):

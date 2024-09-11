@@ -11,8 +11,19 @@ from src.miappe_packaging.schema import FieldInfo, IDRef, Schema
 from src.miappe_packaging.utils import (
     bnode_factory,
     field_info_from_annotations,
+    get_key_or_attribute,
     make_ref,
     validate_schema,
+)
+from tests.fixture import (
+    Group,
+    Obama,
+    ObamaDataClass,
+    ObamaDict,
+    ObamaNamedTuple,
+    ObamaTypedDict,
+    Presidents,
+    VicePresidents,
 )
 
 
@@ -229,6 +240,12 @@ def test_make_ref(ref: str | IdentifiedNode, exp: URIRef) -> None:
     assert isinstance(parsed_ref, URIRef)
 
 
+@pytest.mark.parametrize("ref", [(1.0), ([1, 2, 3])])
+def test_invalid_make_ref(ref: Any) -> None:
+    with pytest.raises(TypeError):
+        make_ref(ref)
+
+
 def test_validate_schema_valid() -> None:
     @dataclass
     class Person:
@@ -268,3 +285,100 @@ def test_validate_schema_invalid_missing_fields() -> None:
     )
     with pytest.raises(AnnotationError):
         validate_schema(Person, schema)
+
+
+@pytest.mark.parametrize(
+    "instance, name",
+    [
+        (Obama, "ID"),
+        (ObamaDict, "id"),
+        (ObamaTypedDict, "birthdate"),
+        (ObamaDataClass, "firstName"),
+        (ObamaNamedTuple, "knows"),
+    ],
+)
+def test_get_key_or_attribute(instance: Any, name: str) -> None:
+    value = get_key_or_attribute(name, instance)
+    assert value == getattr(Obama, name)
+
+
+@pytest.mark.parametrize(
+    "instance, name",
+    [
+        (Obama, "IDx"),
+        (ObamaDict, "idx"),
+        (ObamaTypedDict, "birthdatex"),
+        (ObamaDataClass, "firstNamex"),
+        (ObamaNamedTuple, "knowsx"),
+    ],
+)
+def test_get_key_or_attribute_no_raise(instance: Any, name: str) -> None:
+    value = get_key_or_attribute(name, instance, raise_error_if_missing=False)
+    assert value is None
+
+
+@pytest.mark.parametrize(
+    "instance, name",
+    [
+        (Obama, "IDx"),
+        (ObamaDict, "idx"),
+        (ObamaTypedDict, "birthdatex"),
+        (ObamaDataClass, "firstNamex"),
+        (ObamaNamedTuple, "knowsx"),
+    ],
+)
+def test_get_key_or_attribute_raise(instance: Any, name: str) -> None:
+    with pytest.raises(KeyError):
+        get_key_or_attribute(name, instance, raise_error_if_missing=True)
+
+
+@pytest.mark.parametrize(
+    "instance, schema",
+    [
+        (ObamaDataClass, Obama.__schema__),
+        (ObamaDict, Obama.__schema__),
+        (ObamaNamedTuple, Obama.__schema__),
+        (ObamaTypedDict, Obama.__schema__),
+    ],
+)
+def test_validate_schema_non_linked_dataclass(instance: Any, schema: Schema) -> None:
+    try:
+        validate_schema(instance, schema)
+    except Exception:
+        raise
+
+
+@pytest.mark.parametrize(
+    "instance, schema",
+    [
+        (ObamaDataClass, Group.__schema__),
+        (ObamaDict, Presidents.__schema__),
+        (ObamaNamedTuple, VicePresidents.__schema__),
+        (ObamaTypedDict, Group.__schema__),
+    ],
+)
+def test_validate_schema_non_linked_dataclass_wrong_schema_raises(
+    instance: Any, schema: Schema
+) -> None:
+    with pytest.raises(AnnotationError):
+        validate_schema(instance, schema)
+
+
+@pytest.mark.parametrize(
+    "instance",
+    [
+        (ObamaDataClass),
+        (ObamaDict),
+        (ObamaNamedTuple),
+        (ObamaTypedDict),
+    ],
+)
+def test_validate_schema_non_linked_dataclass_no_schema_raises(instance: Any) -> None:
+    with pytest.raises(ValueError):
+        validate_schema(instance, None)  # type: ignore[arg-type]
+
+
+def test_validate_schema_invalid_object_raises() -> None:
+    obama_tuple = ((k, v) for k, v in ObamaDict.items())
+    with pytest.raises(TypeError):
+        validate_schema(obama_tuple, Obama.__schema__)
