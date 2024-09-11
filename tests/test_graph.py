@@ -6,10 +6,17 @@ from rdflib.compare import to_isomorphic
 from rdflib.namespace import RDF
 
 from src.miappe_packaging.exceptions import MissingSchema
-from src.miappe_packaging.graph import from_struct, sub_graph, to_builtin, to_struct
+from src.miappe_packaging.graph import (
+    from_struct,
+    get_subjects,
+    sub_graph,
+    to_builtin,
+    to_struct,
+)
 from src.miappe_packaging.schema import Schema
 from src.miappe_packaging.struct import LinkedDataClass
 from tests.fixture import (
+    ID_POOL,
     AlGore,
     Biden,
     Clinton,
@@ -152,3 +159,21 @@ def test_sub_graph(
 def test_subgraph_id_not_exists() -> None:
     with pytest.raises(ValueError):
         sub_graph(ObamaGraph, Biden.ID)
+
+
+@pytest.mark.parametrize(
+    "graph, subject",
+    [
+        (ObamaGraph, set([Obama.ID])),
+        (ClintonGraph, set([Clinton.ID])),
+        (PresidentsGraph, set([Presidents.ID])),
+        (ClintonGraph + ObamaGraph, set([Clinton.ID, Obama.ID])),
+        (
+            ClintonGraph + ObamaGraph + PresidentsGraph + VicePresidentsGraph,
+            set([Clinton.ID, Obama.ID, Presidents.ID, VicePresidents.ID]),
+        ),
+    ],
+)
+def test_graph_get_subjects(graph: Graph, subject: set[URIRef]) -> None:
+    graph_subjects = get_subjects(graph)
+    assert graph_subjects == subject

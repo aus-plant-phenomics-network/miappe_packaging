@@ -29,6 +29,27 @@ def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> N
                 describer.value(info.ref, value, datatype=info.range)
 
 
+def get_subjects(
+    graph: Graph,
+    identifier: URIRef | str | None = None,
+    schema: Schema | None = None,
+) -> set[URIRef]:
+    id_pool = set()
+    if identifier and not schema:
+        id_pool.add(make_ref(identifier))
+    elif not identifier and schema:
+        id_pool.update(graph.subjects(RDF.type, schema.__rdf_resource__, unique=True))
+    elif identifier and schema:
+        if schema.__rdf_resource__ not in graph.objects(make_ref(identifier), RDF.type):
+            raise ValueError(
+                f"Object identified by id: {identifier} is not of type: {schema.__rdf_resource__} in graph"
+            )
+        id_pool.add(make_ref(identifier))
+    else:
+        id_pool.update(graph.subjects(predicate=RDF.type, unique=True))
+    return id_pool
+
+
 @overload
 def from_struct(
     *,
@@ -101,35 +122,25 @@ def sub_graph(graph: Graph, identifier: URIRef | str) -> Graph:
 
 
 @overload
-def to_builtin(*, graph: Graph) -> dict[str, Any]: ...
+def to_builtin(graph: Graph) -> list[dict[str, Any]]: ...
 @overload
-def to_builtin(*, graph: Graph, identifier: URIRef | str) -> dict[str, Any]: ...
+def to_builtin(graph: Graph, *, identifier: URIRef | str) -> list[dict[str, Any]]: ...
 @overload
 def to_builtin(
-    *, graph: Graph, identifier: URIRef | str, schema: Schema
-) -> dict[str, Any]: ...
+    graph: Graph, *, identifier: URIRef | str, schema: Schema
+) -> list[dict[str, Any]]: ...
 @overload
-def to_builtin(*, graph: Graph, schema: Schema) -> dict[str, Any]: ...
+def to_builtin(graph: Graph, *, schema: Schema) -> list[dict[str, Any]]: ...
 def to_builtin(
-    *,
     graph: Graph,
+    *,
     identifier: URIRef | str | None = None,
     schema: Schema | None = None,
-) -> dict[str, Any]:
-    id_pool = set()
-    if identifier and not schema:
-        id_pool.add(make_ref(identifier))
-    elif not identifier and schema:
-        id_pool.update(graph.subjects(RDF.type, schema.__rdf_resource__, unique=True))
-    elif identifier and schema:
-        if schema.__rdf_resource__ not in graph.objects(make_ref(identifier), RDF.type):
-            raise ValueError(
-                f"Object identified by id: {identifier} is not of type: {schema.__rdf_resource__} in graph"
-            )
-        id_pool.add(make_ref(identifier))
-    else:
-        id_pool.update(graph.subjects(predicate=RDF.type, unique=True))
-    result = {}
+) -> list[dict[str, Any]]:
+    # Get subgraphs object ID
+    id_pool = get_subjects(graph, identifier, schema)
+    # Convert to builtin
+    result = []
     for item in id_pool:
         item_attrs = {"id": str(item)}
         stmts = graph.predicate_objects(item, unique=True)
@@ -146,8 +157,8 @@ def to_builtin(
                         item_attrs[attr] = value
                 else:
                     item_attrs[ref] = value
-        result[item] = item_attrs
-    return result
+        result.append(item_attrs)
+    return msgspec.to_builtins(result, enc_hook=enc_hook)
 
 
 def to_struct(
