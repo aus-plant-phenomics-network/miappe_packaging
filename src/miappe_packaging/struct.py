@@ -19,6 +19,12 @@ from src.miappe_packaging.utils import (
     validate_schema,
 )
 
+__all__ = (
+    "LinkedDataClass",
+    "Registry",
+    "encode_struct",
+)
+
 
 class LinkedDataClass(Struct, kw_only=True):
     """Base Linked DataClass

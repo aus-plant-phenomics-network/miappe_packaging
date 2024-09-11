@@ -12,6 +12,15 @@ from rdflib.namespace import XSD
 from src.miappe_packaging.exceptions import AnnotationError
 from src.miappe_packaging.schema import FieldInfo, Schema
 
+__all__ = (
+    "bnode_factory",
+    "field_info_from_annotations",
+    "get_key_or_attribute",
+    "make_ref",
+    "validate_schema",
+)
+
+
 XSD_TO_PYTHON: dict[URIRef | Type, tuple[Type, Meta | None]] = {
     XSD.base64Binary: (bytes, None),
     XSD.boolean: (bool, None),

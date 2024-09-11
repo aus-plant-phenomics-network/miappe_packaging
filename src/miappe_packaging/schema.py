@@ -1,6 +1,12 @@
 from msgspec import Meta, Struct
 from rdflib import URIRef
 
+__all__ = (
+    "FieldInfo",
+    "IDRef",
+    "Schema",
+)
+
 
 class IDRef(Struct):
     ref: URIRef

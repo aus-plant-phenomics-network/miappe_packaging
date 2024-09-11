@@ -20,6 +20,15 @@ from src.miappe_packaging.utils import get_key_or_attribute, make_ref, validate_
 if TYPE_CHECKING:
     from miappe_packaging.struct import LinkedDataClass
 
+__all__ = (
+    "from_struct",
+    "get_subjects",
+    "sub_graph",
+    "to_builtin",
+    "to_struct",
+    "update_attrs_from_stmt",
+)
+
 
 def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> None:
     if value is not None:
@@ -251,7 +260,7 @@ def to_struct(
     model_cls: type[LinkedDataClass],
     schema: Schema | None = None,
 ) -> LinkedDataClass:
-    """Extract a set of tuples whose subject is indentifier and convert it to model_cls
+    """Extract a set of tuples whose subject is identifier and convert it to model_cls
 
     Args:
         graph (Graph): graph whose tuples contain identifier as a subject

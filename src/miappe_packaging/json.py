@@ -3,6 +3,11 @@ from typing import Any, Type
 from msgspec.json import Encoder
 from rdflib import Literal, URIRef
 
+__all__ = (
+    "dec_hook",
+    "enc_hook",
+)
+
 
 def enc_hook(obj: Any) -> Any:
     if isinstance(obj, Literal):

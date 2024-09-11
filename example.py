@@ -1,8 +1,6 @@
 # %%
 import datetime
-from dataclasses import dataclass
-from dataclasses import field as dc_field
-from typing import Annotated, NamedTuple, TypedDict
+from typing import Annotated
 
 from msgspec import field
 from rdflib.namespace import FOAF
