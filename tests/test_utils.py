@@ -6,9 +6,9 @@ import pytest
 from rdflib import BNode, IdentifiedNode, URIRef
 from rdflib.namespace import FOAF, XSD
 
-from src.miappe_packaging.exceptions import AnnotationError
-from src.miappe_packaging.schema import FieldInfo, IDRef, Schema
-from src.miappe_packaging.utils import (
+from appnlib.core.exceptions import AnnotationError
+from appnlib.core.schema import FieldInfo, IDRef, Schema
+from appnlib.core.utils import (
     bnode_factory,
     field_info_from_annotations,
     get_key_or_attribute,

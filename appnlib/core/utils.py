@@ -9,8 +9,8 @@ from msgspec import Meta
 from rdflib import BNode, IdentifiedNode, URIRef
 from rdflib.namespace import XSD
 
-from src.miappe_packaging.exceptions import AnnotationError
-from src.miappe_packaging.schema import FieldInfo, Schema
+from appnlib.core.exceptions import AnnotationError
+from appnlib.core.schema import FieldInfo, Schema
 
 __all__ = (
     "bnode_factory",

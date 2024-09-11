@@ -7,26 +7,23 @@ from typing import TYPE_CHECKING, Any, cast, overload
 from typing import Literal as Literal
 
 import msgspec
+from appnlib.core.exceptions import AnnotationError, MissingSchema
+from appnlib.core.json import dec_hook, enc_hook
+from appnlib.core.schema import FieldInfo, IDRef, Schema
+from appnlib.core.utils import get_key_or_attribute, make_ref, validate_schema
 from rdflib import Graph, URIRef
 from rdflib.extras.describer import Describer
 from rdflib.graph import _ObjectType
 from rdflib.namespace import RDF
 
-from src.miappe_packaging.exceptions import AnnotationError, MissingSchema
-from src.miappe_packaging.json import dec_hook, enc_hook
-from src.miappe_packaging.schema import FieldInfo, IDRef, Schema
-from src.miappe_packaging.utils import get_key_or_attribute, make_ref, validate_schema
-
 if TYPE_CHECKING:
-    from src.miappe_packaging.struct import LinkedDataClass
+    from appnlib.core.struct import LinkedDataClass
 
 __all__ = (
     "from_struct",
-    "get_subjects",
     "sub_graph",
     "to_builtin",
     "to_struct",
-    "update_attrs_from_stmt",
 )
 
 
@@ -42,20 +39,7 @@ def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> N
                 describer.value(info.ref, value, datatype=info.range)  # type: ignore[no-untyped-call]
 
 
-@overload
-def get_subjects(graph: Graph) -> set[URIRef]: ...
-@overload
-def get_subjects(graph: Graph, *, identifier: URIRef | str) -> set[URIRef]: ...
-@overload
-def get_subjects(graph: Graph, *, schema: Schema) -> set[URIRef]: ...
-@overload
-def get_subjects(
-    graph: Graph,
-    *,
-    identifier: URIRef | str | None = None,
-    schema: Schema | None = None,
-) -> set[URIRef]: ...
-def get_subjects(
+def _get_subjects(
     graph: Graph,
     *,
     identifier: URIRef | str | None = None,
@@ -101,23 +85,55 @@ def get_subjects(
     )
 
 
+def _update_attrs_from_stmt(
+    pred: URIRef,
+    value: _ObjectType,
+    attrs: dict[str, Any],
+    schema: Schema | None = None,
+) -> dict[str, Any]:
+    if pred == RDF.type:
+        return attrs
+    pred_str = str(pred)
+    if not schema:
+        if pred in attrs:
+            if not isinstance(attrs[pred], list):
+                attrs[pred] = [attrs[pred]]
+            attrs[pred].append(value)
+        else:
+            attrs[pred] = value
+    else:
+        pred_str = schema.ref_mapping[pred]
+        if schema.attrs[pred_str].repeat:
+            if pred_str in attrs:
+                attrs[pred_str].append(value)
+            else:
+                attrs[pred_str] = [value]
+        else:
+            if pred_str in attrs:
+                raise AnnotationError(
+                    f"Field: {pred_str} not annotated with repeat, but receives collection like value"
+                )
+            attrs[pred_str] = value
+    return attrs
+
+
 @overload
 def from_struct(
-    *,
     struct: Any,
+    *,
     graph: Graph,
     schema: Schema | None = None,
 ) -> Graph: ...
 @overload
 def from_struct(
-    *,
     struct: Any,
+    *,
     schema: Schema | None = None,
     identifier: URIRef | str | None = None,
 ) -> Graph: ...
 def from_struct(
-    *,
     struct: Any,
+    *,
     schema: Schema | None = None,
     graph: Graph | None = None,
     identifier: URIRef | str | None = None,
@@ -200,8 +216,21 @@ def to_builtin(
     identifier: URIRef | str | None = None,
     schema: Schema | None = None,
 ) -> list[dict[str, Any]]:
+    """Convert a graph to python builtins.
+
+    Each subject that has rdf:type predicate is converted to an object (a python dictionary). The entire graph
+    is encoded as a list of dictionary.
+
+    Args:
+        graph (Graph): graph object
+        identifier (URIRef | str | None, optional): optional ID to extract subgraph identified by subject ID. Defaults to None.
+        schema (Schema | None, optional): optional schema to rename fields. Defaults to None.
+
+    Returns:
+        list[dict[str, Any]]: list of subgraphs as dictionary
+    """
     # Get subgraphs object ID
-    id_pool = get_subjects(
+    id_pool = _get_subjects(
         graph=graph,
         identifier=identifier,
         schema=schema,
@@ -212,7 +241,7 @@ def to_builtin(
         item_attrs = {"id": str(item)}
         stmts = graph.predicate_objects(item, unique=True)
         for ref, value in stmts:
-            update_attrs_from_stmt(cast(URIRef, ref), value, item_attrs, schema)
+            _update_attrs_from_stmt(cast(URIRef, ref), value, item_attrs, schema)
         result.append(item_attrs)
     return cast(
         list[dict[str, Any]],
@@ -231,38 +260,6 @@ def to_builtin(
             ),
         ),
     )
-
-
-def update_attrs_from_stmt(
-    pred: URIRef,
-    value: _ObjectType,
-    attrs: dict[str, Any],
-    schema: Schema | None = None,
-) -> dict[str, Any]:
-    if pred == RDF.type:
-        return attrs
-    pred_str = str(pred)
-    if not schema:
-        if pred in attrs:
-            if not isinstance(attrs[pred], list):
-                attrs[pred] = [attrs[pred]]
-            attrs[pred].append(value)
-        else:
-            attrs[pred] = value
-    else:
-        pred_str = schema.ref_mapping[pred]
-        if schema.attrs[pred_str].repeat:
-            if pred_str in attrs:
-                attrs[pred_str].append(value)
-            else:
-                attrs[pred_str] = [value]
-        else:
-            if pred_str in attrs:
-                raise AnnotationError(
-                    f"Field: {pred_str} not annotated with repeat, but receives collection like value"
-                )
-            attrs[pred_str] = value
-    return attrs
 
 
 def to_struct(

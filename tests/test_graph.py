@@ -7,17 +7,17 @@ from rdflib.compare import to_isomorphic
 from rdflib.graph import _ObjectType
 from rdflib.namespace import FOAF, RDF
 
-from src.miappe_packaging.exceptions import AnnotationError, MissingSchema
-from src.miappe_packaging.graph import (
+from appnlib.core.exceptions import AnnotationError, MissingSchema
+from appnlib.core.graph import (
+    _get_subjects,
+    _update_attrs_from_stmt,
     from_struct,
-    get_subjects,
     sub_graph,
     to_builtin,
     to_struct,
-    update_attrs_from_stmt,
 )
-from src.miappe_packaging.schema import Schema
-from src.miappe_packaging.struct import LinkedDataClass
+from appnlib.core.schema import Schema
+from appnlib.core.struct import LinkedDataClass
 from tests.fixture import (
     AlGore,
     Biden,
@@ -178,8 +178,8 @@ def test_subgraph_id_not_exist_raises() -> None:
         ),
     ],
 )
-def test_graph_get_subjects(graph: Graph, subject: set[URIRef]) -> None:
-    graph_subjects = get_subjects(graph)
+def test_graph__get_subjects(graph: Graph, subject: set[URIRef]) -> None:
+    graph_subjects = _get_subjects(graph)
     assert graph_subjects == subject
 
 
@@ -197,10 +197,10 @@ def test_graph_get_subjects(graph: Graph, subject: set[URIRef]) -> None:
         ),
     ],
 )
-def test_graph_get_subjects_with_identifier(
+def test_graph__get_subjects_with_identifier(
     graph: Graph, identifier: URIRef, subject: set[URIRef]
 ) -> None:
-    graph_subjects = get_subjects(graph, identifier=identifier)
+    graph_subjects = _get_subjects(graph, identifier=identifier)
     assert graph_subjects == subject
 
 
@@ -227,10 +227,10 @@ def test_graph_get_subjects_with_identifier(
         ),
     ],
 )
-def test_graph_get_subjects_with_schema(
+def test_graph__get_subjects_with_schema(
     graph: Graph, schema: Schema, subject: set[URIRef]
 ) -> None:
-    graph_subjects = get_subjects(graph, schema=schema)
+    graph_subjects = _get_subjects(graph, schema=schema)
     assert graph_subjects == subject
 
 
@@ -260,10 +260,10 @@ def test_graph_get_subjects_with_schema(
         ),
     ],
 )
-def test_graph_get_subjects_with_schema_and_identifier(
+def test_graph__get_subjects_with_schema_and_identifier(
     graph: Graph, identifier: URIRef, schema: Schema, subject: set[URIRef]
 ) -> None:
-    graph_subjects = get_subjects(graph, schema=schema, identifier=identifier)
+    graph_subjects = _get_subjects(graph, schema=schema, identifier=identifier)
     assert graph_subjects == subject
 
 
@@ -276,11 +276,11 @@ def test_graph_get_subjects_with_schema_and_identifier(
         (ObamaGraph + BidenGraph, Presidents.ID),
     ],
 )
-def test_graph_get_subjects_with_identifier_not_in_graph_raises(
+def test_graph__get_subjects_with_identifier_not_in_graph_raises(
     graph: Graph, identifier: URIRef
 ) -> None:
     with pytest.raises(ValueError):
-        get_subjects(graph=graph, identifier=identifier)
+        _get_subjects(graph=graph, identifier=identifier)
 
 
 @pytest.mark.parametrize(
@@ -292,11 +292,11 @@ def test_graph_get_subjects_with_identifier_not_in_graph_raises(
         (ObamaGraph + BidenGraph, Presidents.ID, Presidents.__schema__),
     ],
 )
-def test_graph_get_subjects_with_identifier_schema_not_in_graph_raises(
+def test_graph__get_subjects_with_identifier_schema_not_in_graph_raises(
     graph: Graph, identifier: URIRef, schema: Schema
 ) -> None:
     with pytest.raises(ValueError):
-        get_subjects(graph=graph, identifier=identifier, schema=schema)
+        _get_subjects(graph=graph, identifier=identifier, schema=schema)
 
 
 @pytest.mark.parametrize(
@@ -336,7 +336,7 @@ def test_update_attrs_with_schema(
     schema: Schema | None,
     exp_attrs: dict[str, Any],
 ) -> None:
-    update_attrs_from_stmt(pred, value, attrs, schema)
+    _update_attrs_from_stmt(pred, value, attrs, schema)
     assert attrs == exp_attrs
 
 
@@ -384,7 +384,7 @@ def test_update_attrs_no_schema(
     schema: Schema | None,
     exp_attrs: dict[str, Any],
 ) -> None:
-    update_attrs_from_stmt(pred, value, attrs, schema)
+    _update_attrs_from_stmt(pred, value, attrs, schema)
     assert attrs == exp_attrs
 
 
@@ -406,7 +406,7 @@ def test_update_attrs_wrong_schema_raises(
     schema: Schema | None,
 ) -> None:
     with pytest.raises(AnnotationError):
-        update_attrs_from_stmt(pred, value, attrs, schema)
+        _update_attrs_from_stmt(pred, value, attrs, schema)
 
 
 @pytest.mark.parametrize(

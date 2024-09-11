@@ -6,8 +6,8 @@ from typing import Annotated, NamedTuple, TypedDict
 from msgspec import field
 from rdflib.namespace import FOAF
 
-from src.miappe_packaging.schema import FieldInfo, IDRef, Schema
-from src.miappe_packaging.struct import LinkedDataClass
+from appnlib.core.schema import FieldInfo, IDRef, Schema
+from appnlib.core.struct import LinkedDataClass
 
 
 class Person(LinkedDataClass):

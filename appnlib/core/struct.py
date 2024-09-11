@@ -5,19 +5,18 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, cast, overload
 
 import msgspec
-from msgspec import Struct, field
-from rdflib import Graph, Namespace, URIRef
-
-from src.miappe_packaging.exceptions import AnnotationError
-from src.miappe_packaging.graph import from_struct
-from src.miappe_packaging.json import LinkedEncoder, enc_hook
-from src.miappe_packaging.schema import FieldInfo, Schema
-from src.miappe_packaging.utils import (
+from appnlib.core.exceptions import AnnotationError
+from appnlib.core.graph import from_struct
+from appnlib.core.json import LinkedEncoder, enc_hook
+from appnlib.core.schema import FieldInfo, Schema
+from appnlib.core.utils import (
     bnode_factory,
     field_info_from_annotations,
     make_ref,
     validate_schema,
 )
+from msgspec import Struct, field
+from rdflib import Graph, Namespace, URIRef
 
 __all__ = (
     "LinkedDataClass",

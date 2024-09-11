@@ -21,7 +21,7 @@ analysis = ["pre-commit>=3.8.0", "ruff>=0.6.4", "mypy>=1.11.2"]
 concurrency = ["multiprocessing", "thread"]
 omit = ["*/tests/*"]
 parallel = true
-source = ["src"]
+source = ["appnlib"]
 
 [tool.coverage.report]
 exclude_also = [
@@ -32,7 +32,7 @@ exclude_also = [
 ]
 
 [tool.mypy]
-packages = ["src", "tests"]
+packages = ["appnlib", "tests"]
 python_version = "3.11"
 
 disallow_any_generics = false
