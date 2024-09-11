@@ -29,25 +29,57 @@ def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> N
                 describer.value(info.ref, value, datatype=info.range)
 
 
+@overload
+def get_subjects(graph: Graph) -> set[URIRef]: ...
+@overload
+def get_subjects(graph, *, identifier: URIRef | str) -> set[URIRef]: ...
+@overload
+def get_subjects(graph, *, schema: Schema) -> set[URIRef]: ...
+@overload
+def get_subjects(
+    graph, *, identifier: URIRef | str | None = None, schema: Schema | None = None
+) -> set[URIRef]: ...
 def get_subjects(
     graph: Graph,
+    *,
     identifier: URIRef | str | None = None,
     schema: Schema | None = None,
 ) -> set[URIRef]:
-    id_pool = set()
-    if identifier and not schema:
-        id_pool.add(make_ref(identifier))
-    elif not identifier and schema:
-        id_pool.update(graph.subjects(RDF.type, schema.__rdf_resource__, unique=True))
-    elif identifier and schema:
-        if schema.__rdf_resource__ not in graph.objects(make_ref(identifier), RDF.type):
+    """Get all subjects from a given graph.
+
+    If identifier is provided, return the identifier if it is a subject of the graph. If schema is provided,
+    return all identifiers whose RDF:type is the schema.__rdf_resource__. If both identifier and schema are
+    return the identifier if the statement (identifier, RDF:type, schema.__rdf_resource__) is in the graph.
+    If only graph is provided, return all subjects from the graph.
+
+    Args:
+        graph (Graph): source graph
+        identifier (URIRef | str | None, optional): subject identifier. Defaults to None.
+        schema (Schema | None, optional): schema. Defaults to None.
+
+    Raises:
+        ValueError: if given identifier is not in graph
+        ValueError: if (identifier, RDF:type, schema.__rdf_resource__) is not in graph
+
+    Returns:
+        set[URIRef]: found subjects
+    """
+    if identifier:
+        identifier = make_ref(identifier)
+        if (identifier, None, None) not in graph:
+            raise ValueError(f"Identifier: {identifier} not in graph")
+        if (
+            schema is not None
+            and (identifier, RDF.type, schema.__rdf_resource__) not in graph
+        ):
             raise ValueError(
                 f"Object identified by id: {identifier} is not of type: {schema.__rdf_resource__} in graph"
             )
-        id_pool.add(make_ref(identifier))
-    else:
-        id_pool.update(graph.subjects(predicate=RDF.type, unique=True))
-    return id_pool
+        return set([identifier])
+    resource = schema.__rdf_resource__ if schema else None
+    return set(
+        [URIRef(item) for item in graph.subjects(predicate=RDF.type, object=resource)]
+    )
 
 
 @overload
