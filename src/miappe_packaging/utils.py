@@ -21,30 +21,36 @@ __all__ = (
 )
 
 
-XSD_TO_PYTHON: dict[URIRef | Type, tuple[Type, Meta | None]] = {
+XSD_TO_PYTHON: dict[
+    URIRef,
+    tuple[
+        Type,
+        Meta | None,
+    ],
+] = {
     XSD.base64Binary: (bytes, None),
     XSD.boolean: (bool, None),
     XSD.byte: (bytes, None),
     XSD.date: (datetime.date, None),
     XSD.dateTime: (datetime.datetime, None),
     XSD.dateTimeStamp: (datetime.datetime, Meta(tz=True)),
-    XSD.decimal: (float,),
-    XSD.double: (float,),
-    XSD.duration: (datetime.timedelta),
-    XSD.float: (float,),
-    XSD.int: (int,),
-    XSD.integer: (int,),
-    XSD.long: (int,),
-    XSD.short: (int,),
+    XSD.decimal: (float, None),
+    XSD.double: (float, None),
+    XSD.duration: (datetime.timedelta, None),
+    XSD.float: (float, None),
+    XSD.int: (int, None),
+    XSD.integer: (int, None),
+    XSD.long: (int, None),
+    XSD.short: (int, None),
     XSD.negativeInteger: (int, Meta(lt=0)),
     XSD.nonNegativeInteger: (int, Meta(ge=0)),
     XSD.nonPositiveInteger: (int, Meta(le=0)),
     XSD.positiveInteger: (int, Meta(gt=0)),
-    XSD.time: (datetime.time,),
-    XSD.string: (str,),
+    XSD.time: (datetime.time, None),
+    XSD.string: (str, None),
 }
 
-PYTHON_TO_XSD: dict[Type, URIRef] = {
+PYTHON_TO_XSD: dict[Type | Any, URIRef] = {
     datetime.date: XSD.date,
     datetime.time: XSD.time,
     datetime.datetime: XSD.dateTime,
@@ -54,7 +60,7 @@ PYTHON_TO_XSD: dict[Type, URIRef] = {
     bytes: XSD.byte,
     bool: XSD.boolean,
     Any: XSD.string,
-    None: None,
+    None: None,  # type: ignore [dict-item, index]
 }
 
 
@@ -130,8 +136,8 @@ def field_info_from_annotations(
         "repeat": False,  # Set to True if origin is list or tuple
     }
     if hasattr(annotation, "__args__"):
-        base_type = set()
-        origins = set()
+        base_type: set[Type] = set()
+        origins: set[Type] = set()
         if hasattr(annotation, "__origin__") and isinstance(
             get_origin(annotation), type
         ):
@@ -174,4 +180,4 @@ def field_info_from_annotations(
         if annotation is None:
             kwargs["required"] = False
         kwargs["range"] = PYTHON_TO_XSD[annotation]
-    return FieldInfo(**kwargs)
+    return FieldInfo(**kwargs)  # type: ignore[arg-type]

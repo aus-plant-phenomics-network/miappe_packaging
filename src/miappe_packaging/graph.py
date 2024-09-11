@@ -3,13 +3,13 @@ from __future__ import annotations
 import datetime
 import decimal
 import uuid
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, cast, overload
 from typing import Literal as Literal
 
 import msgspec
 from rdflib import Graph, URIRef
 from rdflib.extras.describer import Describer
-from rdflib.graph import _ObjectType, _PredicateType
+from rdflib.graph import _ObjectType
 from rdflib.namespace import RDF
 
 from src.miappe_packaging.exceptions import AnnotationError, MissingSchema
@@ -18,7 +18,7 @@ from src.miappe_packaging.schema import FieldInfo, IDRef, Schema
 from src.miappe_packaging.utils import get_key_or_attribute, make_ref, validate_schema
 
 if TYPE_CHECKING:
-    from miappe_packaging.struct import LinkedDataClass
+    from src.miappe_packaging.struct import LinkedDataClass
 
 __all__ = (
     "from_struct",
@@ -37,20 +37,23 @@ def _describer_add_value(describer: Describer, value: Any, info: FieldInfo) -> N
                 _describer_add_value(describer, item, info)
         else:
             if isinstance(info.range, IDRef):
-                describer.rel(info.ref, value)
+                describer.rel(info.ref, value)  # type: ignore[no-untyped-call]
             else:
-                describer.value(info.ref, value, datatype=info.range)
+                describer.value(info.ref, value, datatype=info.range)  # type: ignore[no-untyped-call]
 
 
 @overload
 def get_subjects(graph: Graph) -> set[URIRef]: ...
 @overload
-def get_subjects(graph, *, identifier: URIRef | str) -> set[URIRef]: ...
+def get_subjects(graph: Graph, *, identifier: URIRef | str) -> set[URIRef]: ...
 @overload
-def get_subjects(graph, *, schema: Schema) -> set[URIRef]: ...
+def get_subjects(graph: Graph, *, schema: Schema) -> set[URIRef]: ...
 @overload
 def get_subjects(
-    graph, *, identifier: URIRef | str | None = None, schema: Schema | None = None
+    graph: Graph,
+    *,
+    identifier: URIRef | str | None = None,
+    schema: Schema | None = None,
 ) -> set[URIRef]: ...
 def get_subjects(
     graph: Graph,
@@ -88,10 +91,13 @@ def get_subjects(
             raise ValueError(
                 f"Object identified by id: {identifier} is not of type: {schema.__rdf_resource__} in graph"
             )
-        return set([identifier])
+        return cast(set[URIRef], set([identifier]))
     resource = schema.__rdf_resource__ if schema else None
     return set(
-        [URIRef(item) for item in graph.subjects(predicate=RDF.type, object=resource)]
+        [
+            URIRef(str(item))
+            for item in graph.subjects(predicate=RDF.type, object=resource)
+        ]
     )
 
 
@@ -136,6 +142,7 @@ def from_struct(
         if not hasattr(struct, "__schema__"):
             raise MissingSchema("A schema must be provided to convert struct to graph")
         schema = getattr(struct, "__schema__")
+    schema = cast(Schema, schema)
     if graph is None:
         graph = Graph(identifier=make_ref(identifier))
     instance_id = None
@@ -146,8 +153,8 @@ def from_struct(
         instance_id = get_key_or_attribute("id", struct)
     else:
         raise ValueError("Missing ID/id field in object in from_struct operation")
-    describer = Describer(graph=graph, about=instance_id)
-    describer.rdftype(schema.__rdf_resource__)
+    describer = Describer(graph=graph, about=instance_id)  # type: ignore[no-untyped-call]
+    describer.rdftype(schema.__rdf_resource__)  # type: ignore[no-untyped-call]
     for name, info in schema.name_mapping.items():
         value = get_key_or_attribute(name, struct, raise_error_if_missing=True)
         _describer_add_value(describer, value, info)
@@ -205,32 +212,36 @@ def to_builtin(
         item_attrs = {"id": str(item)}
         stmts = graph.predicate_objects(item, unique=True)
         for ref, value in stmts:
-            update_attrs_from_stmt(ref, value, item_attrs, schema)
+            update_attrs_from_stmt(cast(URIRef, ref), value, item_attrs, schema)
         result.append(item_attrs)
-    return msgspec.to_builtins(
-        result,
-        enc_hook=enc_hook,
-        builtin_types=(
-            bytes,
-            bytearray,
-            datetime.datetime,
-            datetime.time,
-            datetime.date,
-            datetime.timedelta,
-            uuid.UUID,
-            decimal.Decimal,
+    return cast(
+        list[dict[str, Any]],
+        msgspec.to_builtins(
+            result,
+            enc_hook=enc_hook,
+            builtin_types=(
+                bytes,
+                bytearray,
+                datetime.datetime,
+                datetime.time,
+                datetime.date,
+                datetime.timedelta,
+                uuid.UUID,
+                decimal.Decimal,
+            ),
         ),
     )
 
 
 def update_attrs_from_stmt(
-    pred: _PredicateType,
+    pred: URIRef,
     value: _ObjectType,
     attrs: dict[str, Any],
     schema: Schema | None = None,
 ) -> dict[str, Any]:
     if pred == RDF.type:
-        return
+        return attrs
+    pred_str = str(pred)
     if not schema:
         if pred in attrs:
             if not isinstance(attrs[pred], list):
@@ -239,18 +250,18 @@ def update_attrs_from_stmt(
         else:
             attrs[pred] = value
     else:
-        pred = schema.ref_mapping[pred]
-        if schema.attrs[pred].repeat:
-            if pred in attrs:
-                attrs[pred].append(value)
+        pred_str = schema.ref_mapping[pred]
+        if schema.attrs[pred_str].repeat:
+            if pred_str in attrs:
+                attrs[pred_str].append(value)
             else:
-                attrs[pred] = [value]
+                attrs[pred_str] = [value]
         else:
-            if pred in attrs:
+            if pred_str in attrs:
                 raise AnnotationError(
-                    f"Field: {pred} not annotated with repeat, but receives collection like value"
+                    f"Field: {pred_str} not annotated with repeat, but receives collection like value"
                 )
-            attrs[pred] = value
+            attrs[pred_str] = value
     return attrs
 
 

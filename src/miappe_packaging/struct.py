@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Literal, overload
+from typing import Any, ClassVar, Literal, Self, cast, overload
 
 import msgspec
 from msgspec import Struct, field
@@ -50,7 +50,7 @@ class LinkedDataClass(Struct, kw_only=True):
         Returns:
             URIRef: id of current object.
         """
-        return make_ref(self.id)
+        return cast(URIRef, make_ref(self.id))
 
     def __post_init__(self) -> None:
         Registry().register(self)
@@ -96,7 +96,7 @@ class LinkedDataClass(Struct, kw_only=True):
 
 
 class Registry:
-    _instance = None
+    _instance: Self | None = None
     type_dict: dict[URIRef, type[LinkedDataClass]] = dict()
     instance_dict: dict[URIRef, dict[URIRef, LinkedDataClass]] = dict()
     _graph = Graph()
@@ -105,10 +105,10 @@ class Registry:
     def graph(self) -> Graph:
         return self._graph
 
-    def __new__(self, *args, **kwargs):
+    def __new__(self, *args: Any, **kwargs: Any) -> Self:
         if not self._instance:
             self._instance = super().__new__(self, *args, **kwargs)
-        return self._instance
+        return cast(Self, self._instance)
 
     def register(self, instance: LinkedDataClass) -> None:
         rdf_resource = instance.__schema__.__rdf_resource__
@@ -192,6 +192,6 @@ def encode_struct(
         case "json":
             return LinkedEncoder.encode(struct)
         case "builtin":
-            return msgspec.to_builtins(struct, enc_hook=enc_hook)
+            return cast(dict, msgspec.to_builtins(struct, enc_hook=enc_hook))
         case _:
             raise TypeError(f"Invalid format: {format}")

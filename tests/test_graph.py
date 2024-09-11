@@ -4,7 +4,7 @@ from typing import Any, Type
 import pytest
 from rdflib import Graph, Literal, URIRef
 from rdflib.compare import to_isomorphic
-from rdflib.graph import _ObjectType, _PredicateType
+from rdflib.graph import _ObjectType
 from rdflib.namespace import FOAF, RDF
 
 from src.miappe_packaging.exceptions import AnnotationError, MissingSchema
@@ -330,7 +330,7 @@ def test_graph_get_subjects_with_identifier_schema_not_in_graph_raises(
     ],
 )
 def test_update_attrs_with_schema(
-    pred: _PredicateType,
+    pred: URIRef,
     value: _ObjectType,
     attrs: dict[str, Any],
     schema: Schema | None,
@@ -378,7 +378,7 @@ def test_update_attrs_with_schema(
     ],
 )
 def test_update_attrs_no_schema(
-    pred: _PredicateType,
+    pred: URIRef,
     value: _ObjectType,
     attrs: dict[str, Any],
     schema: Schema | None,
@@ -400,7 +400,7 @@ def test_update_attrs_no_schema(
     ],
 )
 def test_update_attrs_wrong_schema_raises(
-    pred: _PredicateType,
+    pred: URIRef,
     value: _ObjectType,
     attrs: dict[str, Any],
     schema: Schema | None,
