@@ -45,7 +45,7 @@ Obama = Person(
     id=ID_POOL["BarrackObama"],
     firstName="Barrack",
     lastName="Obama",
-    birthday=datetime.datetime(1961, 8, 4),
+    birthday=datetime.date(1961, 8, 4),
     knows=[ID_POOL["JoeBiden"], ID_POOL["BillClinton"]],
 )
 
@@ -61,7 +61,7 @@ Clinton = Person(
     id=ID_POOL["BillClinton"],
     firstName="Bill",
     lastName="Clinton",
-    birthday=datetime.datetime(1946, 8, 19),
+    birthday=datetime.date(1946, 8, 19),
     knows=[ID_POOL["AlGore"], ID_POOL["BarrackObama"]],
 )
 
@@ -69,7 +69,7 @@ AlGore = Person(
     id=ID_POOL["AlGore"],
     firstName="Al",
     lastName="Gore",
-    birthday=datetime.datetime(1948, 3, 31),
+    birthday=datetime.date(1948, 3, 31),
     knows=[ID_POOL["BillClinton"]],
 )
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime
+import decimal
+import uuid
 from typing import TYPE_CHECKING, Any, overload
 from typing import Literal as Literal
 
@@ -199,7 +201,16 @@ def to_builtin(
     return msgspec.to_builtins(
         result,
         enc_hook=enc_hook,
-        builtin_types=(datetime.datetime, datetime.date, datetime.time),
+        builtin_types=(
+            bytes,
+            bytearray,
+            datetime.datetime,
+            datetime.time,
+            datetime.date,
+            datetime.timedelta,
+            uuid.UUID,
+            decimal.Decimal,
+        ),
     )
 
 
@@ -240,7 +251,23 @@ def to_struct(
     model_cls: type[LinkedDataClass],
     schema: Schema | None = None,
 ) -> LinkedDataClass:
+    """Extract a set of tuples whose subject is indentifier and convert it to model_cls
+
+    Args:
+        graph (Graph): graph whose tuples contain identifier as a subject
+        identifier (URIRef | str): ID of the entity of interest
+        model_cls (type[LinkedDataClass]): model class - a subclass of LinkedDataClass (note different from a LinkedDataClass instance)
+        schema (Schema | None, optional): model_cls schema. Defaults to None.
+
+    Raises:
+        ValueError: if the identifier is not in the graph
+
+    Returns:
+        LinkedDataClass: returned object
+    """
     if not schema:
         schema = model_cls.__schema__
     data_kwargs = to_builtin(graph=graph, identifier=identifier, schema=schema)
-    return msgspec.from_builtins(data_kwargs, type=model_cls, dec_hook=dec_hook)
+    return msgspec.convert(
+        data_kwargs[0], type=model_cls, dec_hook=dec_hook, strict=False
+    )

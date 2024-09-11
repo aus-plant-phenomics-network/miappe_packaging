@@ -1,5 +1,5 @@
 from operator import itemgetter
-from typing import Any
+from typing import Any, Type
 
 import pytest
 from rdflib import Graph, Literal, URIRef
@@ -20,14 +20,8 @@ from src.miappe_packaging.schema import Schema
 from src.miappe_packaging.struct import LinkedDataClass
 from tests.fixture import (
     AlGore,
-    AlGoreDict,
-    AlGoreRawDict,
     Biden,
-    BidenDict,
-    BidenRawDict,
     Clinton,
-    ClintonDict,
-    ClintonRawDict,
     Group,
     Obama,
     ObamaDataClass,
@@ -37,11 +31,8 @@ from tests.fixture import (
     ObamaTypedDict,
     Person,
     Presidents,
-    PresidentsDict,
     PresidentsRawDict,
     VicePresidents,
-    VicePresidentsDict,
-    VicePresidentsRawDict,
 )
 
 ObamaGraph = from_struct(struct=Obama)
@@ -418,9 +409,6 @@ def test_update_attrs_wrong_schema_raises(
         update_attrs_from_stmt(pred, value, attrs, schema)
 
 
-# TODO: Add tests for to built-in for different scenarios
-
-
 @pytest.mark.parametrize(
     "graph, exp_attrs",
     [
@@ -430,5 +418,127 @@ def test_update_attrs_wrong_schema_raises(
 )
 def test_to_builtin_no_schema(graph: Graph, exp_attrs: list[dict[str, Any]]) -> None:
     python_obj = to_builtin(graph=graph)
-    list_1, list_2 = [sorted(l, key=itemgetter("id")) for l in (python_obj, exp_attrs)]
+    list_1, list_2 = [
+        sorted(item, key=itemgetter("id")) for item in (python_obj, exp_attrs)
+    ]
     assert list_1 == list_2
+
+
+@pytest.mark.parametrize(
+    "graph, identifier, ref_struct, model_cls, schema",
+    [
+        (ObamaGraph, Obama.ID, Obama, Person, None),
+        (ObamaGraph, Obama.ID, Obama, Person, None),
+        (ObamaGraph + BidenGraph, Obama.ID, Obama, Person, Person.__schema__),
+        (ObamaGraph + BidenGraph, Biden.ID, Biden, Person, Person.__schema__),
+        (
+            ObamaGraph
+            + BidenGraph
+            + PresidentsGraph
+            + VicePresidentsGraph
+            + ClintonGraph
+            + AlGoreGraph,
+            Biden.ID,
+            Biden,
+            Person,
+            None,
+        ),
+        (
+            ObamaGraph
+            + BidenGraph
+            + PresidentsGraph
+            + VicePresidentsGraph
+            + ClintonGraph
+            + AlGoreGraph,
+            Clinton.ID,
+            Clinton,
+            Person,
+            None,
+        ),
+        (
+            ObamaGraph
+            + BidenGraph
+            + PresidentsGraph
+            + VicePresidentsGraph
+            + ClintonGraph
+            + AlGoreGraph,
+            AlGore.ID,
+            AlGore,
+            Person,
+            None,
+        ),
+        (
+            ObamaGraph
+            + BidenGraph
+            + PresidentsGraph
+            + VicePresidentsGraph
+            + ClintonGraph
+            + AlGoreGraph,
+            Obama.ID,
+            Obama,
+            Person,
+            Person.__schema__,
+        ),
+        (
+            ObamaGraph
+            + BidenGraph
+            + PresidentsGraph
+            + VicePresidentsGraph
+            + ClintonGraph
+            + AlGoreGraph,
+            Presidents.ID,
+            Presidents,
+            Group,
+            None,
+        ),
+        (
+            ObamaGraph
+            + BidenGraph
+            + PresidentsGraph
+            + VicePresidentsGraph
+            + ClintonGraph
+            + AlGoreGraph,
+            VicePresidents.ID,
+            VicePresidents,
+            Group,
+            Group.__schema__,
+        ),
+    ],
+)
+def test_to_struct(
+    graph: Graph,
+    identifier: URIRef,
+    ref_struct: LinkedDataClass,
+    model_cls: Type[LinkedDataClass],
+    schema: Schema,
+) -> None:
+    struct = to_struct(
+        graph=graph,
+        identifier=identifier,
+        model_cls=model_cls,
+        schema=schema,
+    )
+    assert struct.ID == ref_struct.ID
+    for key in struct.__struct_fields__:
+        value = getattr(struct, key)
+        ref_value = getattr(ref_struct, key)
+        if isinstance(value, list):
+            assert set(value) == set(ref_value)
+        else:
+            assert value == ref_value
+
+
+@pytest.mark.parametrize(
+    "graph, identifier, model_cls, schema",
+    [
+        (ObamaGraph, Biden.ID, Person, Person.__schema__),
+        (ObamaGraph, Presidents.ID, Person, Person.__schema__),
+    ],
+)
+def test_to_struct_no_id(
+    graph: Graph, identifier: URIRef, model_cls: Type[LinkedDataClass], schema: Schema
+) -> None:
+    with pytest.raises(ValueError):
+        to_struct(
+            graph=graph, identifier=identifier, model_cls=model_cls, schema=schema
+        )
