@@ -88,14 +88,8 @@ mypy-nocache:                                       ## Run Mypy without cache
 	@$(PDM) run dmypy run -- --cache-dir=/dev/null
 	@echo "=> mypy complete"
 
-.PHONY: pyright
-pyright:                                            ## Run pyright
-	@echo "=> Running pyright"
-	@$(PDM) run pyright
-	@echo "=> pyright complete"
-
 .PHONY: type-check
-type-check: mypy pyright                            ## Run all type checking
+type-check: mypy		                            ## Run all type checking
 
 .PHONY: pre-commit
 pre-commit: 										## Runs pre-commit hooks; includes ruff formatting and linting, codespell
@@ -109,7 +103,7 @@ lint: pre-commit type-check 						## Run all linting
 .PHONY: coverage
 coverage:  											## Run the tests and generate coverage report
 	@echo "=> Running tests with coverage"
-	@$(PDM) run pytest tests --cov src --cov-report html 
+	@$(PDM) run pytest tests --cov src --cov-report html
 
 .PHONY: test
 test:  												## Run the tests
@@ -157,4 +151,3 @@ docs-linkcheck: 									## Run the link check on the docs
 .PHONY: docs-linkcheck-full
 docs-linkcheck-full: 									## Run the full link check on the docs
 	@$(PDM) run sphinx-build -b linkcheck ./docs ./docs/_build -D linkcheck_anchors=0
-

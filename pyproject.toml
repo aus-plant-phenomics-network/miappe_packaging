@@ -25,6 +25,7 @@ jupyter = [
 test = [
     "pytest>=8.3.2",
     "pytest-cov>=5.0.0",
+    "mypy>=1.11.2",
 ]
 analysis = [
     "pre-commit>=3.8.0",
