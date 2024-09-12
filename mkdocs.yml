@@ -13,3 +13,12 @@ theme:
         toggle:
           icon: 'material/lightbulb-outline'
           name: 'Switch to light mode'
+
+plugins:
+  - search
+  - mkdocstrings:
+      enable_inventory: true
+      handlers:
+        python:
+          options:
+            docstring_style: google

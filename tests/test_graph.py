@@ -54,7 +54,7 @@ VicePresidentsGraph = from_struct(struct=VicePresidents)
         (VicePresidents, VicePresidents.__schema__),
     ],
 )
-def test_to_graph(object: LinkedDataClass, schema: Schema | None) -> None:
+def test_from_struct(object: LinkedDataClass, schema: Schema | None) -> None:
     obj_graph = from_struct(struct=object, schema=schema)
     ref_mapping = object.__schema__.ref_mapping
     subjects = list(obj_graph.subjects(RDF.type))
@@ -75,12 +75,12 @@ def test_to_graph(object: LinkedDataClass, schema: Schema | None) -> None:
             assert obj.toPython() == value  # type:ignore[attr-defined]
 
 
-def test_to_graph_id_provided() -> None:
+def test_from_struct_id_provided() -> None:
     graph = from_struct(struct=Obama, identifier="./localID/ObamaGraph")
     assert graph.identifier == URIRef("./localID/ObamaGraph")
 
 
-def test_to_graph_existing_graph_empty_base() -> None:
+def test_from_struct_existing_graph_empty_base() -> None:
     blank_graph = Graph()
     from_struct(struct=Obama, graph=blank_graph)
     iso_blank = to_isomorphic(blank_graph)
@@ -88,7 +88,7 @@ def test_to_graph_existing_graph_empty_base() -> None:
     assert iso_blank == iso_obama
 
 
-def test_to_graph_existing_graph_non_empty_base() -> None:
+def test_from_struct_existing_graph_non_empty_base() -> None:
     base = from_struct(struct=Obama)
     from_struct(struct=Biden, graph=base)
     from_struct(struct=Clinton, graph=base)
@@ -114,7 +114,7 @@ def test_to_graph_existing_graph_non_empty_base() -> None:
         (ObamaDataClass),
     ],
 )
-def test_to_graph_on_other_dataclasses_with_schema(obj: Any) -> None:
+def test_from_struct_on_other_dataclasses_with_schema(obj: Any) -> None:
     obama_graph = from_struct(struct=obj, schema=Person.__schema__)
     assert to_isomorphic(obama_graph) == to_isomorphic(ObamaGraph)
 
@@ -128,12 +128,12 @@ def test_to_graph_on_other_dataclasses_with_schema(obj: Any) -> None:
         (ObamaNamedTuple),
     ],
 )
-def test_to_graph_on_other_dataclasses_without_schema_raises(obj: Any) -> None:
+def test_from_struct_on_other_dataclasses_without_schema_raises(obj: Any) -> None:
     with pytest.raises(MissingSchema):
         from_struct(struct=obj)
 
 
-def test_to_graph_on_other_dataclasses_without_id_raises() -> None:
+def test_from_struct_on_other_dataclasses_without_id_raises() -> None:
     kwargs = {k: v for k, v in ObamaDict.items() if k not in ["id", "ID"]}
     with pytest.raises(ValueError):
         from_struct(struct=kwargs, schema=Person.__schema__)
