@@ -7,14 +7,15 @@ from typing import TYPE_CHECKING, Any, cast, overload
 from typing import Literal as Literal
 
 import msgspec
-from appnlib.core.exceptions import AnnotationError, MissingSchema
-from appnlib.core.json import dec_hook, enc_hook
-from appnlib.core.schema import FieldInfo, IDRef, Schema
-from appnlib.core.utils import get_key_or_attribute, make_ref, validate_schema
 from rdflib import Graph, URIRef
 from rdflib.extras.describer import Describer
 from rdflib.graph import _ObjectType
 from rdflib.namespace import RDF
+
+from appnlib.core.exceptions import AnnotationError, MissingSchema
+from appnlib.core.json import dec_hook, enc_hook
+from appnlib.core.schema import FieldInfo, IDRef, Schema
+from appnlib.core.utils import get_key_or_attribute, make_ref, validate_schema
 
 if TYPE_CHECKING:
     from appnlib.core.struct import LinkedDataClass
