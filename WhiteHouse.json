@@ -1,0 +1,96 @@
+{
+  "@context": {
+    "foaf": "http://xmlns.com/foaf/0.1/"
+  },
+  "@graph": [
+    {
+      "@id": "http://example.org/JoeBiden",
+      "@type": "foaf:Person",
+      "foaf:birthdate": {
+        "@type": "http://www.w3.org/2001/XMLSchema#date",
+        "@value": "1942-11-20"
+      },
+      "foaf:firstName": "Joe",
+      "foaf:knows": {
+        "@id": "http://example.org/BarrackObama"
+      },
+      "foaf:lastName": "Biden"
+    },
+    {
+      "@id": "http://example.org/BillClinton",
+      "@type": "foaf:Person",
+      "foaf:birthdate": {
+        "@type": "http://www.w3.org/2001/XMLSchema#date",
+        "@value": "1946-08-19T00:00:00"
+      },
+      "foaf:firstName": "Bill",
+      "foaf:knows": [
+        {
+          "@id": "http://example.org/AlGore"
+        },
+        {
+          "@id": "http://example.org/BarrackObama"
+        }
+      ],
+      "foaf:lastName": "Clinton"
+    },
+    {
+      "@id": "http://example.org/AlGore",
+      "@type": "foaf:Person",
+      "foaf:birthdate": {
+        "@type": "http://www.w3.org/2001/XMLSchema#date",
+        "@value": "1948-03-31T00:00:00"
+      },
+      "foaf:firstName": "Al",
+      "foaf:knows": {
+        "@id": "http://example.org/BillClinton"
+      },
+      "foaf:lastName": "Gore"
+    },
+    {
+      "@id": "http://example.org/USVicePresidents",
+      "@type": "foaf:Group",
+      "foaf:member": [
+        {
+          "@id": "http://example.org/AlGore"
+        },
+        {
+          "@id": "http://example.org/JoeBiden"
+        }
+      ]
+    },
+    {
+      "@id": "http://example.org/BarrackObama",
+      "@type": "foaf:Person",
+      "foaf:birthdate": {
+        "@type": "http://www.w3.org/2001/XMLSchema#date",
+        "@value": "1961-08-04T00:00:00"
+      },
+      "foaf:firstName": "Barrack",
+      "foaf:knows": [
+        {
+          "@id": "http://example.org/JoeBiden"
+        },
+        {
+          "@id": "http://example.org/BillClinton"
+        }
+      ],
+      "foaf:lastName": "Obama"
+    },
+    {
+      "@id": "http://example.org/USPresidents",
+      "@type": "foaf:Group",
+      "foaf:member": [
+        {
+          "@id": "http://example.org/BarrackObama"
+        },
+        {
+          "@id": "http://example.org/BillClinton"
+        },
+        {
+          "@id": "http://example.org/JoeBiden"
+        }
+      ]
+    }
+  ]
+}

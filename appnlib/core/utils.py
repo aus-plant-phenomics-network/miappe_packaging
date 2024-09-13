@@ -6,14 +6,14 @@ from types import NoneType
 from typing import Any, Type, get_args, get_origin
 
 from msgspec import Meta
-from rdflib import BNode, IdentifiedNode, URIRef
+from rdflib import BNode, IdentifiedNode, URIRef, Namespace
 from rdflib.namespace import XSD
 
 from appnlib.core.exceptions import AnnotationError
 from appnlib.core.schema import FieldInfo, Schema
 
+
 __all__ = (
-    "bnode_factory",
     "field_info_from_annotations",
     "get_key_or_attribute",
     "make_ref",
@@ -64,20 +64,29 @@ PYTHON_TO_XSD: dict[Type | Any, URIRef] = {
 }
 
 
-def bnode_factory() -> URIRef:
-    return URIRef("./localID/" + str(BNode()))
-
-
 def make_ref(identifier: IdentifiedNode | str | None = None) -> IdentifiedNode:
-    if not identifier:
-        return bnode_factory()
-    if isinstance(identifier, BNode):
-        if not identifier.startswith("./localID"):
-            return URIRef("./localID/" + identifier)
-        return URIRef(identifier)
-    if isinstance(identifier, URIRef):
+    """Create a Node reference
+
+    If identifier is a `URIRef` or `BNode`, the function will return identifier as is. If the identifier is a string,
+    depending on whether it starts with `_:`, the function will return a `BNode` or `URIRef` with the identifier
+    value. If not provided, the function will generate and return a BNode
+
+    Args:
+        identifier (IdentifiedNode | str | None, optional): identifier value. Defaults to None.
+
+    Raises:
+        TypeError: if identifier is not a string or not IdentifiedNode or BNode type.
+
+    Returns:
+        IdentifiedNode: identifier as `IdentifiedNode` type
+    """
+    if identifier is None:
+        return BNode()
+    if isinstance(identifier, IdentifiedNode):
         return identifier
     if isinstance(identifier, str):
+        if identifier.startswith("_:"):
+            return BNode(identifier[2:])
         return URIRef(identifier)
     raise TypeError(f"Invalid type: {type(identifier)}")
 
@@ -85,6 +94,21 @@ def make_ref(identifier: IdentifiedNode | str | None = None) -> IdentifiedNode:
 def get_key_or_attribute(
     field: str, obj: Any, raise_error_if_missing: bool = False
 ) -> Any:
+    """From an object, attempt to get key if object is dict like otherwise get attribute.
+
+    Read obj.get(field) then try getattr(obj, field)
+
+    Args:
+        field (str): key/attribute name
+        obj (Any): object to extract key/attribute from
+        raise_error_if_missing (bool, optional): whether to raise if the field is missing. Defaults to False.
+
+    Raises:
+        KeyError: If the object has no key or attribute with the name field
+
+    Returns:
+        Any: the key/attribute value if they exist, or None if they don't and `raise_error_if_missing` is False
+    """
     if hasattr(obj, field):
         return getattr(obj, field)
     if isinstance(obj, dict) and field in obj:
@@ -127,10 +151,37 @@ def field_info_from_annotations(
     field_name: str,
     class_name: str,
     annotation: Any,
-    context: URIRef,
+    context: Namespace,
 ) -> FieldInfo:
+    """Gather `FieldInfo` from provided annotation.
+
+    - `ref`: derived from context and field_name. For instance, if context if FOAF, field_name is firstName, ref will be
+    `FOAF.firstName`
+    - `range`: derived from annotation type. Range will be mapped between an acceptable python type and and XSD URIRef
+    - `required`: derived from annotation type. Whether the annotation is a Union with None
+    - `repeat`: derived from annotation type. Whether the annotation origin is a `Sequence` or `Set`
+
+    Annotation must be a native python type, a Sequence (`list`/`tuple`) or a Set (`set`)
+    of native python types. Native python types are `datetime.date`, `datetime.time`, `datetime.datetime`,
+    `str`, `int`, `float`, `bytes`, `bool`, `Any`, `None`
+
+    Args:
+        field_name (str): name of the field - for error reporting purposes and for deriving ref
+        class_name (str): name of the class - for error reporting purposes
+        annotation (Any): field annotation
+        context (Namespace): a namespace that has field_name as a member
+
+    Raises:
+        TypeError: if the annotated type is not a python native type.
+        TypeError: if annotation origin (for Generics) are not Sequence or Set
+        TypeError: if union type is not between a native/native/list/set and a None. Union with more than 2 types are not accepted
+
+
+    Returns:
+        FieldInfo: parsed field info
+    """
     kwargs = {
-        "ref": URIRef(context + field_name),  # Set to field name
+        "ref": context[field_name],  # Set to field name
         "range": None,  # Obtained from PYTHON_TO_XSD dict
         "required": True,  # Set to False if type is Optional
         "repeat": False,  # Set to True if origin is list or tuple
@@ -161,7 +212,7 @@ def field_info_from_annotations(
                 )
         if len(base_type) == 2 and NoneType not in base_type or len(base_type) > 2:
             raise TypeError(
-                f"Composite type accepts a base type and a NoneType only. Class: {class_name}, field: {field_name}"
+                f"Union type accepts a base type and a NoneType only. Class: {class_name}, field: {field_name}"
             )
         for tp in base_type:
             if tp is NoneType:

@@ -3,13 +3,12 @@ from dataclasses import dataclass
 from typing import Any, Optional, Type, Union
 
 import pytest
-from rdflib import BNode, IdentifiedNode, URIRef
+from rdflib import BNode, IdentifiedNode, URIRef, Namespace
 from rdflib.namespace import FOAF, XSD
 
 from appnlib.core.exceptions import AnnotationError
 from appnlib.core.schema import FieldInfo, IDRef, Schema
 from appnlib.core.utils import (
-    bnode_factory,
     field_info_from_annotations,
     get_key_or_attribute,
     make_ref,
@@ -62,7 +61,7 @@ def test_get_field_info_basic_type(annotation: Type, info: FieldInfo) -> None:
         field_name="name",
         class_name="Test",
         annotation=annotation,
-        context=URIRef("./"),
+        context=Namespace("./"),
     )
     assert parsed_info == info
 
@@ -103,7 +102,7 @@ def test_get_field_info_optional(annotation: Type, info: FieldInfo) -> None:
         field_name="name",
         class_name="Test",
         annotation=annotation,
-        context=URIRef("./"),
+        context=Namespace("./"),
     )
     assert parsed_info == info
 
@@ -154,7 +153,7 @@ def test_get_field_info_sequence(annotation: Type, info: FieldInfo) -> None:
         field_name="name",
         class_name="Test",
         annotation=annotation,
-        context=URIRef("./"),
+        context=Namespace("./"),
     )
     assert parsed_info == info
 
@@ -175,7 +174,7 @@ def test_get_field_info_composite_type_raises(annotation: Type) -> None:
             field_name="name",
             class_name="Class",
             annotation=annotation,
-            context=URIRef("./"),
+            context=Namespace("./"),
         )
 
 
@@ -185,7 +184,7 @@ def test_get_field_info_dict_type_raises() -> None:
             field_name="name",
             class_name="Class",
             annotation=dict[str, Any],
-            context=URIRef("./"),
+            context=Namespace("./"),
         )
 
 
@@ -205,14 +204,8 @@ def test_get_field_info_non_base_type_raises(annotation: Type) -> None:
             field_name="name",
             class_name="Class",
             annotation=annotation,
-            context=URIRef("./"),
+            context=Namespace("./"),
         )
-
-
-def test_bnode_factory() -> None:
-    ref = bnode_factory()
-    assert ref.startswith("./localID/")
-    assert isinstance(ref, URIRef)
 
 
 @pytest.mark.parametrize(
@@ -223,21 +216,25 @@ def test_bnode_factory() -> None:
             "http://example.org/dog",
             URIRef("http://example.org/dog"),
         ),
+        # String converted to BNode
+        ("_:http://example.org/dog", BNode("http://example.org/dog")),
         # URIRef kept as is
         (
             URIRef("http://example.org/dog"),
             URIRef("http://example.org/dog"),
         ),
-        # BNode without ./localID converted to URIRef
-        (BNode("1001"), URIRef("./localID/1001")),
-        # BNode with ./localID converted to URIRef
-        (BNode("./localID/1001"), URIRef("./localID/1001")),
+        # BNode kept as is
+        (BNode("1001"), BNode("1001")),
     ],
 )
 def test_make_ref(ref: str | IdentifiedNode, exp: URIRef) -> None:
     parsed_ref = make_ref(ref)
     assert parsed_ref == exp
-    assert isinstance(parsed_ref, URIRef)
+
+
+def test_make_ref_factory() -> None:
+    ref = make_ref()
+    assert isinstance(ref, BNode)
 
 
 @pytest.mark.parametrize("ref", [(1.0), ([1, 2, 3])])

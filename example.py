@@ -1,24 +1,19 @@
 # %%
-from dataclasses import dataclass
-from typing import NamedTuple, dataclass_transform, get_type_hints
-from msgspec import Struct
-
-@dataclass_transform()
-class BaseModel: ...
+from rdflib import Graph, URIRef, Literal, BNode
+from rdflib.namespace import XSD, FOAF, RDF
 
 
-@dataclass
-class MyModel:
-    name: str
-    age: int
+graph = Graph()
+Obama = URIRef("Obama")
+Biden = BNode()
+graph.add((Obama, RDF.type, FOAF.Person))
+graph.add((Biden, RDF.type, FOAF.Person))
+graph.add((Obama, FOAF.firstName, Literal("Barrack")))
+graph.add((Biden, FOAF.firstName, Literal("Joe")))
+graph.add((Obama, FOAF.knows, Biden))
+graph.add((Biden, FOAF.knows, Literal([Obama, Biden])))
 
 
-class AnotherModel:
-    name: str
-    age: int
-
-
-MyClass = type("MyClass", (), {"__annotations__": {"age": int, "name": str}})
-
+graph.serialize("people.json", format="json-ld", context={"foaf": FOAF._NS})
 
 # %%

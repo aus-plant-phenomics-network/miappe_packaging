@@ -10,13 +10,12 @@ from appnlib.core.graph import from_struct
 from appnlib.core.json import LinkedEncoder, enc_hook
 from appnlib.core.schema import FieldInfo, Schema
 from appnlib.core.utils import (
-    bnode_factory,
     field_info_from_annotations,
     make_ref,
     validate_schema,
 )
 from msgspec import Struct, field
-from rdflib import Graph, Namespace, URIRef
+from rdflib import Graph, Namespace, URIRef, BNode
 
 __all__ = (
     "LinkedDataClass",
@@ -31,7 +30,7 @@ class LinkedDataClass(Struct, kw_only=True):
     Can be treated as a simple Python dataclass object.
     """
 
-    id: str = field(default_factory=bnode_factory)
+    id: str = field(default_factory=BNode)
     """Instance ID. If not provided, will be assigned a blank node ID"""
     __schema__: ClassVar[Schema]
     """Schema object. Class attribute"""
@@ -53,6 +52,10 @@ class LinkedDataClass(Struct, kw_only=True):
 
     def __post_init__(self) -> None:
         Registry().register(self)
+
+    @property
+    def schema(self) -> Schema:
+        return self.__schema__
 
     def __init_subclass__(cls) -> None:
         # Validate schema if schema is not provided
@@ -176,7 +179,7 @@ class Registry:
 
         Args:
             destination (str | Path): file path
-            format (TypingLiteral[ &quot;json, optional): supported serialisation formats. Defaults to "json-ld".
+            format (Literal["json-ld", "turtle", "xml", "pretty-xml", "n3", "nt", "trix"], optional): supported serialisation formats. Defaults to "json-ld".
         """
         self.add_all()
         self._graph.serialize(

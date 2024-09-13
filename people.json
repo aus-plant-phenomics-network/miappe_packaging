@@ -1,0 +1,21 @@
+{
+  "@context": {
+    "foaf": "http://xmlns.com/foaf/0.1/"
+  },
+  "@graph": [
+    {
+      "@id": "Obama",
+      "@type": "foaf:Person",
+      "foaf:firstName": "Barrack",
+      "foaf:knows": {
+        "@id": "_:N21f79709f93e45da95d0e939e726839a"
+      }
+    },
+    {
+      "@id": "_:N21f79709f93e45da95d0e939e726839a",
+      "@type": "foaf:Person",
+      "foaf:firstName": "Joe",
+      "foaf:knows": "[rdflib.term.URIRef('Obama'), rdflib.term.BNode('N21f79709f93e45da95d0e939e726839a')]"
+    }
+  ]
+}
