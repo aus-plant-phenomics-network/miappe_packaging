@@ -14,11 +14,21 @@ theme:
           icon: 'material/lightbulb-outline'
           name: 'Switch to light mode'
 
+nav:
+  - API Reference:
+    - Schema: schema.md
+    - Struct: struct.md
+    - Graph: graph.md
+    - Utility: utils.md
+
 plugins:
   - search
+  - autorefs
   - mkdocstrings:
       enable_inventory: true
       handlers:
         python:
           options:
             docstring_style: google
+            show_source: false 
+            heading_level: 3

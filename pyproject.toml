@@ -22,6 +22,7 @@ docs = [
     "mkdocstrings-python==1.11",
     "markdown-exec>=1.9.3",
     "mkdocs-version-annotations>=1.0.0",
+    "mkdocs-autorefs>=1.2.0",
 ]
 
 [tool.coverage.run]
