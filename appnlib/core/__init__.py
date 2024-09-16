@@ -1,3 +1,3 @@
-from . import schema
+from . import validator
 
 __all__ = "schema"

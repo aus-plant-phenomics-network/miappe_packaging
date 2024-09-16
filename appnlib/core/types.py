@@ -1,32 +1,12 @@
 from __future__ import annotations
-
-import datetime
-from collections.abc import Mapping, Sequence, Set
+from rdflib import URIRef, IdentifiedNode, Namespace
 from types import NoneType
-from typing import (
-    Any,
-    Callable,
-    ClassVar,
-    Literal,
-    Optional,
-    Protocol,
-    Type,
-    get_args,
-    get_origin,
-)
-
-from msgspec import Meta, Struct
-from rdflib import BNode, Namespace, URIRef
+from msgspec import Struct, Meta
+from typing import Type, Any, Protocol, ClassVar, Optional, get_args, get_origin
+from collections.abc import Mapping, Sequence, Set
+from dataclasses import Field
 from rdflib.namespace import XSD
-
-from appnlib.core.exceptions import ValidationError
-
-__all__ = (
-    "FieldInfo",
-    "IDRef",
-    "Schema",
-)
-
+import datetime
 
 XSD_TO_PYTHON: dict[
     URIRef,
@@ -68,19 +48,40 @@ PYTHON_TO_XSD: dict[Type | Any, URIRef] = {
 }
 
 
-class HasSchema(Protocol):
-    __schema__: ClassVar[Schema]
+class AnnotatedP(Protocol):
+    """Protocol that has __annotations__ field"""
+
+    __annotations__: ClassVar[dict[str, Type]]
 
 
-class StructLike(Protocol):
+class DataClassP(AnnotatedP, Protocol):
+    """Native python dataclass protocol. Must have __dataclass_fields__ field"""
+
+    __dataclass_fields__: ClassVar[dict[str, Field]]
+
+
+class StructP(AnnotatedP, Protocol):
+    """msgspec.Struct protocol. Must have __struct_fields__ field"""
+
     __struct_fields__: ClassVar[tuple[str, ...]]
 
 
-NodeT = BNode | URIRef | str
-AttrsT = dict[str, Any] | HasSchema
-FieldSet = set[str]
-UnannotatedStrategyT = Literal["ignore", "raise", "coerce"]
-CoerceMethodT = Namespace | Callable[[str], URIRef]
+DataClassT = dict[str, Any] | AnnotatedP | DataClassP | StructP
+"""Schema-less dataclass/struct/dict"""
+
+
+class LinkedDataClassP(StructP, Protocol):
+    """Struct dataclass with accompanied schema information"""
+
+    @property
+    def schema(self) -> Schema: ...
+
+    @property
+    def rdf_resource(self) -> URIRef: ...
+
+
+NodeT = IdentifiedNode | str
+FieldSetT = set[str]
 
 
 class IDRef(Struct):
@@ -226,7 +227,7 @@ class Schema(Struct):
         return {item.ref: name for name, item in self.attrs.items()}
 
     @property
-    def fields(self) -> FieldSet:
+    def fields(self) -> FieldSetT:
         """Get all attributes defined in the schema
 
         Returns:
@@ -235,92 +236,10 @@ class Schema(Struct):
         return set(self.attrs.keys())
 
     @property
-    def required(self) -> FieldSet:
+    def required(self) -> FieldSetT:
         """Get required fields from schema
 
         Returns:
             FieldSet: set of required fields in schema
         """
         return set([k for k, v in self.attrs.items() if v.required])
-
-
-class SchemaValidator:
-    @staticmethod
-    def compatible(src: Schema, dst: Schema) -> None:
-        """Assert that two schemas are compatible.
-
-        Two schemas are compatible if they describe the same resource - i.e. having the
-        same `rdf_resource`
-
-        Args:
-            src (Schema): src schema
-            dst (Schema): dst schema
-
-        Raises:
-            ValidationError: if src and dst have different resources
-        """
-        if src.rdf_resource != dst.rdf_resource:
-            raise ValidationError(
-                f"Schemas describing different resources: {src.rdf_resource} != {dst.rdf_resource}"
-            )
-
-    @staticmethod
-    def equal(src_fields: FieldSet, dst_fields: FieldSet) -> None:
-        """Validate that two field sets are equal
-
-        Args:
-            src_fields (FieldSet): src fields
-            dst_fields (FieldSet): dst fields
-
-        Raises:
-            ValidationError: if there is a field in src but not in dst and vice versa
-        """
-        if src_fields != dst_fields:
-            raise ValidationError(
-                f"Different required fields. In src: {src_fields - dst_fields}. In dst: {dst_fields - src_fields}"
-            )
-
-    @staticmethod
-    def subset(src_fields: FieldSet, dst_fields: FieldSet) -> None:
-        """Check if src fields is a subset of dst fields
-
-        Args:
-            src_fields (FieldSet): set of src fields
-            dst_fields (FieldSet): set of dst fields
-
-        Raises:
-            ValidationError: if there are fields in src_fields but not in dst_fields
-        """
-        if not src_fields.issubset(dst_fields):
-            raise ValidationError(f"Not a subset. In src: {src_fields - dst_fields}")
-
-    @staticmethod
-    def is_valid_extension(src: Schema, dst: Schema) -> None:
-        """Validate that dst schema is a valid extension of src schema.
-
-        dst is a valid extension of src iff
-        - They describe the same resource - i.e. matching `rdf_resource`
-        - All fields present in src are present in dst
-        - All required fields in src must also be required in dst
-
-        Args:
-            src (Schema): base schema
-            dst (Schema): extended schema
-        """
-        SchemaValidator.compatible(src, dst)
-        SchemaValidator.subset(src.fields, dst.fields)
-        SchemaValidator.subset(src.required, dst.required)
-
-    @staticmethod
-    def is_valid_dataclass(struct: StructLike, schema: Schema) -> None:
-        """Validate that given schema annotates the given struct
-
-        Schema annotates struct if all attrs names of schema match that
-        of struct.
-
-        Args:
-            struct (StructLike): struct object - must have __struct_fields__
-            schema (Schema): schema object
-        """
-        field_set = set(struct.__struct_fields__)
-        SchemaValidator.equal(field_set, schema.fields)

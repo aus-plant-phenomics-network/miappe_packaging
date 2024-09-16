@@ -1,5 +1,13 @@
 {
-  "cSpell.words": ["bnode", "FOAF", "miappe", "msgspec", "rdflib", "rdftype"],
+  "cSpell.words": [
+    "appnlib",
+    "bnode",
+    "FOAF",
+    "miappe",
+    "msgspec",
+    "rdflib",
+    "rdftype"
+  ],
   "python.testing.pytestArgs": ["tests", "-vv"],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,

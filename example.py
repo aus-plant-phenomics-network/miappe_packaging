@@ -1,6 +1,6 @@
 # %%
 from rdflib import Graph, URIRef, Literal, BNode
-from rdflib.namespace import XSD, FOAF, RDF
+from rdflib.namespace import FOAF, RDF
 
 
 graph = Graph()
