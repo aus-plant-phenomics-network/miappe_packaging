@@ -1,12 +1,12 @@
 from __future__ import annotations
-from rdflib import URIRef, IdentifiedNode, Namespace
-from types import NoneType
-from msgspec import Struct, Meta
-from typing import Type, Any, Protocol, ClassVar, Optional, get_args, get_origin
-from collections.abc import Mapping, Sequence, Set
-from dataclasses import Field
-from rdflib.namespace import XSD
+
 import datetime
+from dataclasses import Field
+from typing import Any, ClassVar, Optional, Protocol, Type
+
+from msgspec import Meta, Struct
+from rdflib import IdentifiedNode, URIRef
+from rdflib.namespace import XSD
 
 XSD_TO_PYTHON: dict[
     URIRef,
@@ -84,24 +84,15 @@ NodeT = IdentifiedNode | str
 FieldSetT = set[str]
 
 
-class IDRef(Struct):
-    """Add metadata to the range attribute of FieldInfo.
-
-    FieldInfo with IDRef attribute means that the field references
-    an object of type ref.
-    """
-
-    ref: URIRef
-    """Type of referenced object in rdf.property term"""
-
-
 class FieldInfo(Struct):
     """Field property information"""
 
     ref: URIRef
     """Predicate reference. Used for serialising to rdf triples"""
-    range: URIRef | IDRef | None = None
+    range: URIRef | None = None
     """Range reference - will be used to serialise object literal."""
+    resource_ref: URIRef | None = None
+    """When the range is XSD.IDRef type, the field describe the resource being referenced"""
     repeat: bool = False
     """Whether the attribute takes on multiple values. Used for validation"""
     required: bool = True
@@ -109,92 +100,9 @@ class FieldInfo(Struct):
     meta: Meta | None = None
     """Additional validation information as `msgspec.Meta` object"""
 
-    @classmethod
-    def from_annotations(
-        field_name: str,
-        class_name: str,
-        annotation: Any,
-        context: Namespace,
-    ) -> FieldInfo:
-        """Gather `FieldInfo` from provided annotation.
-
-        - `ref`: derived from context and field_name. For instance, if context if FOAF, field_name is firstName, ref will be
-        `FOAF.firstName`
-        - `range`: derived from annotation type. Range will be mapped between an acceptable python type and and XSD URIRef
-        - `required`: derived from annotation type. Whether the annotation is a Union with None
-        - `repeat`: derived from annotation type. Whether the annotation origin is a `Sequence` or `Set`
-
-        Annotation must be a native python type, a Sequence (`list`/`tuple`) or a Set (`set`)
-        of native python types. Native python types are `datetime.date`, `datetime.time`, `datetime.datetime`,
-        `str`, `int`, `float`, `bytes`, `bool`, `Any`, `None`
-
-        Args:
-            field_name (str): name of the field - for error reporting purposes and for deriving ref
-            class_name (str): name of the class - for error reporting purposes
-            annotation (Any): field annotation
-            context (Namespace): a namespace that has field_name as a member
-
-        Raises:
-            TypeError: if the annotated type is not a python native type.
-            TypeError: if annotation origin (for Generics) are not Sequence or Set
-            TypeError: if union type is not between a native/native/list/set and a None. Union with more than 2 types are not accepted
-
-
-        Returns:
-            FieldInfo: parsed field info
-        """
-        kwargs = {
-            "ref": context[field_name],  # Set to field name
-            "range": None,  # Obtained from PYTHON_TO_XSD dict
-            "required": True,  # Set to False if type is Optional
-            "repeat": False,  # Set to True if origin is list or tuple
-        }
-        if hasattr(annotation, "__args__"):
-            base_type: set[Type] = set()
-            origins: set[Type] = set()
-            if hasattr(annotation, "__origin__") and isinstance(
-                get_origin(annotation), type
-            ):
-                origins.add(get_origin(annotation))
-            for tp in get_args(annotation):
-                if hasattr(tp, "__args__"):
-                    base_type.update(get_args(tp))
-                else:
-                    base_type.add(tp)
-
-                if hasattr(tp, "__origin__") and isinstance(get_origin(tp), type):
-                    origins.add(get_origin(tp))
-
-            for origin in origins:
-                if issubclass(origin, Sequence) or issubclass(origin, Set):
-                    kwargs["repeat"] = True
-                    break
-                if issubclass(origin, Mapping):
-                    raise TypeError(
-                        f"Auto-annotated does not support mapping type. Type: {origin} is not supported. Class: {class_name}, field: {field_name}"
-                    )
-            if len(base_type) == 2 and NoneType not in base_type or len(base_type) > 2:
-                raise TypeError(
-                    f"Union type accepts a base type and a NoneType only. Class: {class_name}, field: {field_name}"
-                )
-            for tp in base_type:
-                if tp is NoneType:
-                    kwargs["required"] = False
-                    continue
-                if tp not in PYTHON_TO_XSD:
-                    raise TypeError(
-                        f"Auto-annotation supports only common base type. Type: {tp} is not supported. Class: {class_name}, field: {field_name}"
-                    )
-                kwargs["range"] = PYTHON_TO_XSD[tp]
-        else:  # Not a parameterized type
-            if annotation not in PYTHON_TO_XSD:
-                raise TypeError(
-                    f"Auto-annotation supports only common base type. Type: {annotation} is not supported. Class: {class_name}, field: {field_name}"
-                )
-            if annotation is None:
-                kwargs["required"] = False
-            kwargs["range"] = PYTHON_TO_XSD[annotation]
-        return FieldInfo(**kwargs)  # type: ignore[arg-type]
+    def __post_init__(self) -> None:
+        if isinstance(self.resource_ref, URIRef) and isinstance(self.range, URIRef) and not (self.range == XSD.IDREF):
+            raise ValueError("If a resource reference is provided, range must be a None or XSD.IDRef")
 
 
 class Schema(Struct):

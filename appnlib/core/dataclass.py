@@ -1,28 +1,31 @@
 from __future__ import annotations
+
 from typing import (
-    ClassVar,
-    Any,
-    Optional,
-    Callable,
-    Type,
-    cast,
-    Generator,
-    TypeVar,
-    overload,
-    Union,
     TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Generator,
+    Optional,
+    Self,
+    Type,
+    TypeVar,
+    Union,
+    cast,
 )
+from typing import Literal as PyLiteral
+
 import msgspec
 from msgspec import Struct, field
-from rdflib import BNode, URIRef, IdentifiedNode, Literal, Graph
-from rdflib.store import Store
+from rdflib import BNode, Graph, IdentifiedNode, Literal, URIRef
+from rdflib.graph import _ContextIdentifierType, _TripleType
 from rdflib.namespace import NamespaceManager
-from rdflib.graph import _TripleType, _ContextIdentifierType
+from rdflib.store import Store
+
 from appnlib.core.exceptions import AnnotationError
-from appnlib.core.types import Schema, IDRef
+from appnlib.core.types import Schema
 from appnlib.core.utils import make_ref
 from appnlib.core.validator import SchemaValidator
-from typing import Self
 
 if TYPE_CHECKING:
     from rdflib._type_checking import _NamespaceSetString
@@ -60,12 +63,10 @@ class LinkedDataClass(Struct, kw_only=True):
     def __init_subclass__(cls) -> None:
         # Validate schema
         if hasattr(cls, "__schema__"):
-            if not SchemaValidator.describe_attrs(
-                attrs=cls, schema=cls.__schema__, mode="full"
-            ):
+            if not SchemaValidator.describe_attrs(attrs=cls, schema=cls.__schema__, mode="full"):
                 raise AnnotationError("Schema does not fully describe LinkedDataClass")
         # Register
-        Registry().register_class(cls)
+        Registry().register_schema(getattr(cls, "__schema__"))
         return super().__init_subclass__()
 
     def __post_init__(self) -> None:
@@ -79,7 +80,7 @@ def default_enc_hook(obj: Any) -> Any:
 
 
 def default_dec_hook(type: Type, obj: Any) -> Any:
-    if type is IdentifiedNode:
+    if issubclass(type, IdentifiedNode):
         return make_ref(str(obj))
 
 
@@ -92,19 +93,13 @@ class Codec:
         self.enc_hook = enc_hook
         self.dec_hook = dec_hook
 
-    def encode_to_dict(
-        self, dataclass: LinkedDataClass, enc_hook: EncHookT = None
-    ) -> dict[str, Any]:
+    def encode_to_dict(self, dataclass: LinkedDataClass, enc_hook: EncHookT = None) -> dict[str, Any]:
         return msgspec.to_builtins(obj=dataclass, enc_hook=enc_hook)
 
-    def encode_to_triple(
-        self, dataclass: LinkedDataClass
-    ) -> Generator[_TripleType, None, None]:
+    def encode_to_triple(self, dataclass: LinkedDataClass) -> Generator[_TripleType, None, None]:
         pass
 
-    def decode_from_triple(
-        self, triple: Generator[_TripleType, None, None]
-    ) -> _LinkedDataClassT:
+    def decode_from_triple(self, triple: Generator[_TripleType, None, None]) -> _LinkedDataClassT:
         pass
 
     def decode_from_dict(
@@ -122,39 +117,43 @@ DEFAULT_CODEC = Codec()
 
 
 class RegistryConfig:
-    pass
+    on_conflict_schema: PyLiteral["raise", "subclass"] = "raise"
+    """Describes how conflicting schema should be handled by the registry. Conflicting schema arises when 
+    two dataclasses have schemas that describe the same resource but have different values. 
+    The two accepted config values are: 
+
+    - raises: will raise an error immediately when conflicting schemas are detected 
+    - subclass: given two schemas that are in conflict, use the schema that is the subclass of the other. 
+    If neither schema is a subclass of the other, will raise an error. 
+
+    The default value is raise.
+    """
+    on_confict_identifier: PyLiteral["raise", "exact", "subset", "chronological"]
+    """Describe how conflicting identifier should be handled by the registry"""
 
 
 class Session(Graph):
-    def _add_dataclass(
-        self, dataclass: LinkedDataClass, codec: Codec = DEFAULT_CODEC
-    ) -> Self:
+    def _add_dataclass(self, dataclass: LinkedDataClass, codec: Codec = DEFAULT_CODEC) -> Self:
         triples = codec.encode_to_triple(dataclass=dataclass)
         self.addN((s, p, o, self) for s, p, o in triples)
         return self
 
-    def add_dataclass(
-        self, dataclass: LinkedDataClass, codec: Codec = DEFAULT_CODEC
-    ) -> Self:
+    def add_dataclass(self, dataclass: LinkedDataClass, codec: Codec = DEFAULT_CODEC) -> Self:
         self._add_dataclass(dataclass, codec)
         registry = Registry()
         schema = dataclass.schema
         for name, info in schema.attrs.items():
-            if isinstance(info.range, IDRef):
-                ref_resource = info.range.ref
+            if info.resource_ref:
+                ref_resource = info.resource_ref
                 range_value = getattr(dataclass, name)
                 if not isinstance(range_value, str) and hasattr(range_value, "__len__"):
                     range_value = [range_value]
                 for value in range_value:
-                    matched_instance = registry.get_instance(
-                        resource=ref_resource, identifier=make_ref(value)
-                    )
+                    matched_instance = registry.get_instance(resource=ref_resource, identifier=make_ref(value))
                     self._add_dataclass(matched_instance, codec)
         return self
 
-    def subgraph(
-        self, identifier: IdentifiedNode
-    ) -> Generator[_TripleType, None, None]:
+    def subgraph(self, identifier: IdentifiedNode) -> Generator[_TripleType, None, None]:
         return self.triples((identifier, None, None))
 
     def to_json(
@@ -189,10 +188,8 @@ class Session(Graph):
 
 class Registry:
     _instance: Self | None = None
-    _type_dict: ClassVar[dict[URIRef, type[LinkedDataClass]]] = dict()
-    _instance_dict: ClassVar[dict[URIRef, dict[IdentifiedNode, LinkedDataClass]]] = (
-        dict()
-    )
+    _schema_dict: ClassVar[dict[URIRef, Schema]] = dict()
+    _instance_dict: ClassVar[dict[URIRef, dict[IdentifiedNode, LinkedDataClass]]] = dict()
     _session_dict: ClassVar[dict[IdentifiedNode, Session]] = dict()
     __config__: ClassVar[RegistryConfig] = RegistryConfig()
 
@@ -252,7 +249,7 @@ class Registry:
         if identifier in self._session_dict:
             self._session_dict.pop(key=identifier)
 
-    def register_class(self, cls: Type[LinkedDataClass]) -> None:
+    def register_schema(self, schema: Schema) -> None:
         """Add an object to registry, indexed by its rdf_resource
 
         All LinkedDataClass subclasses are automatically registered
@@ -262,13 +259,13 @@ class Registry:
         resolution depends on the registry config
 
         Args:
-            cls (Type[LinkedDataClass]): a LinkedDataClass subclass
+            schema (Type[LinkedDataClass]): a LinkedDataClass subclass
         """
-        if cls.rdf_resource in self._type_dict:
-            self._handle_conflict_object(cls)
+        if schema.rdf_resource in self._schema_dict:
+            self._handle_conflict_object(schema)
         else:
-            self._type_dict[cls.rdf_resource] = cls
-            self._instance_dict[cls.rdf_resource] = dict()
+            self._schema_dict[schema.rdf_resource] = schema
+            self._instance_dict[schema.rdf_resource] = dict()
 
     def register_instance(self, instance: LinkedDataClass) -> None:
         """Add an instance to registry.
@@ -284,17 +281,18 @@ class Registry:
         """
         resource = instance.rdf_resource
         if resource in self._instance_dict:
+            # Another instance with the same ID and resource already registered
             if instance.ID in self._instance_dict[resource]:
                 self._handle_conflict_instance(instance)
             else:
+                # Schema conflict should ready be resolved at this point
                 self._instance_dict[resource] = instance
+        # Unlikely but could happend - i.e. user overwritting the _instance_dict.
         else:
-            self.register_class(instance.__class__)
+            self.register_schema(instance.__class__)
             self.register_instance(instance)
 
-    def get_instance(
-        self, resource: URIRef, identifier: IdentifiedNode
-    ) -> LinkedDataClass:
+    def get_instance(self, resource: URIRef, identifier: IdentifiedNode) -> _LinkedDataClassT:
         """Get a registered instance from resource and identifier
 
         Will raise a KeyError if either resource or identifier is not

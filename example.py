@@ -1,19 +1,20 @@
 # %%
-from rdflib import Graph, URIRef, Literal, BNode
-from rdflib.namespace import FOAF, RDF
+import msgspec
+from rdflib import URIRef
 
+from appnlib.core.dataclass import DEFAULT_CODEC, default_dec_hook, default_enc_hook
+from appnlib.core.types import FieldInfo, Schema
 
-graph = Graph()
-Obama = URIRef("Obama")
-Biden = BNode()
-graph.add((Obama, RDF.type, FOAF.Person))
-graph.add((Biden, RDF.type, FOAF.Person))
-graph.add((Obama, FOAF.firstName, Literal("Barrack")))
-graph.add((Biden, FOAF.firstName, Literal("Joe")))
-graph.add((Obama, FOAF.knows, Biden))
-graph.add((Biden, FOAF.knows, Literal([Obama, Biden])))
+StudySchema = Schema(
+    rdf_resource=URIRef("http://purl.org/ppeo/PPEO.owl#study"),
+    attrs={
+        "factor": FieldInfo(
+            ref=URIRef("http://purl.org/ppeo/PPEO.owl#hasFactor"),
+            resource_ref=URIRef("http://purl.org/ppeo/PPEO.owl#experimentalFactor"),
+        )
+    },
+)
 
-
-graph.serialize("people.json", format="json-ld", context={"foaf": FOAF._NS})
-
+bytes_data = msgspec.json.encode(StudySchema, enc_hook=default_enc_hook)
+decoded_data = msgspec.json.decode(bytes_data, type=Schema, dec_hook=default_dec_hook)
 # %%
