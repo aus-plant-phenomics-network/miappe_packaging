@@ -9,6 +9,11 @@ from appnlib.core.types import (
     AnnotatedP,
 )
 
+__all__ = (
+    "DescribeMode",
+    "SchemaValidator",
+)
+
 
 class DescribeMode(StrEnum):
     FULL = "full"

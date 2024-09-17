@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import datetime
 from dataclasses import Field
-from typing import Any, ClassVar, Optional, Protocol, Type
+from typing import Any, ClassVar, Optional, Protocol, Type, runtime_checkable
 
 from msgspec import Meta, Struct
 from rdflib import IdentifiedNode, URIRef
 from rdflib.namespace import XSD
+
+__all__ = (
+    "AnnotatedP",
+    "DataClassP",
+    "FieldInfo",
+    "LinkedDataClassP",
+    "Schema",
+    "StructP",
+)
+
 
 XSD_TO_PYTHON: dict[
     URIRef,
@@ -48,18 +58,21 @@ PYTHON_TO_XSD: dict[Type | Any, URIRef] = {
 }
 
 
+@runtime_checkable
 class AnnotatedP(Protocol):
     """Protocol that has __annotations__ field"""
 
-    __annotations__: ClassVar[dict[str, Type]]
+    __annotations__: dict[str, Type]
 
 
+@runtime_checkable
 class DataClassP(AnnotatedP, Protocol):
     """Native python dataclass protocol. Must have __dataclass_fields__ field"""
 
     __dataclass_fields__: ClassVar[dict[str, Field]]
 
 
+@runtime_checkable
 class StructP(AnnotatedP, Protocol):
     """msgspec.Struct protocol. Must have __struct_fields__ field"""
 
@@ -70,6 +83,7 @@ DataClassT = dict[str, Any] | AnnotatedP | DataClassP | StructP
 """Schema-less dataclass/struct/dict"""
 
 
+@runtime_checkable
 class LinkedDataClassP(StructP, Protocol):
     """Struct dataclass with accompanied schema information"""
 
@@ -101,8 +115,13 @@ class FieldInfo(Struct):
     """Additional validation information as `msgspec.Meta` object"""
 
     def __post_init__(self) -> None:
-        if isinstance(self.resource_ref, URIRef) and isinstance(self.range, URIRef) and not (self.range == XSD.IDREF):
-            raise ValueError("If a resource reference is provided, range must be a None or XSD.IDRef")
+        if isinstance(self.resource_ref, URIRef):
+            if not self.range or self.range == XSD.IDREF:
+                self.range = XSD.IDREF
+            else:
+                raise ValueError(
+                    "If a resource reference is provided, range must be a None or XSD.IDREF"
+                )
 
 
 class Schema(Struct):
