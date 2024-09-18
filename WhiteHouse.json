@@ -16,10 +16,30 @@
       "foaf:lastName":"Biden"
     },
     {
-      "@id":"http://example.org/USVicePresidents",
+      "@id":"http://example.org/BarrackObama",
+      "foaf:birthday":{
+        "@type":"http://www.w3.org/2001/XMLSchema#date",
+        "@value":"1961-08-04"
+      },
+      "foaf:firstName":"Barrack",
+      "foaf:knows":[
+        {
+          "@id":"http://example.org/JoeBiden"
+        },
+        {
+          "@id":"http://example.org/BillClinton"
+        }
+      ],
+      "foaf:lastName":"Obama"
+    },
+    {
+      "@id":"http://example.org/USPresidents",
       "foaf:member":[
         {
-          "@id":"http://example.org/AlGore"
+          "@id":"http://example.org/BarrackObama"
+        },
+        {
+          "@id":"http://example.org/BillClinton"
         },
         {
           "@id":"http://example.org/JoeBiden"
@@ -44,35 +64,15 @@
       "foaf:lastName":"Clinton"
     },
     {
-      "@id":"http://example.org/USPresidents",
+      "@id":"http://example.org/USVicePresidents",
       "foaf:member":[
         {
-          "@id":"http://example.org/BarrackObama"
-        },
-        {
-          "@id":"http://example.org/BillClinton"
+          "@id":"http://example.org/AlGore"
         },
         {
           "@id":"http://example.org/JoeBiden"
         }
       ]
-    },
-    {
-      "@id":"http://example.org/BarrackObama",
-      "foaf:birthday":{
-        "@type":"http://www.w3.org/2001/XMLSchema#date",
-        "@value":"1961-08-04"
-      },
-      "foaf:firstName":"Barrack",
-      "foaf:knows":[
-        {
-          "@id":"http://example.org/JoeBiden"
-        },
-        {
-          "@id":"http://example.org/BillClinton"
-        }
-      ],
-      "foaf:lastName":"Obama"
     },
     {
       "@id":"http://example.org/AlGore",

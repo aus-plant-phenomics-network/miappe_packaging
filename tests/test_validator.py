@@ -1,8 +1,6 @@
-from rdflib import Namespace, URIRef
-from rdflib.namespace import FOAF, XSD, DefinedNamespace
-
 from appnlib.core.types import FieldInfo, Schema
-from appnlib.core.validator import SchemaValidator
+from rdflib import Namespace
+from rdflib.namespace import FOAF, XSD
 
 
 # ---------------------------------------------------------------------------------------

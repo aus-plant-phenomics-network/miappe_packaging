@@ -2,13 +2,12 @@ from dataclasses import dataclass
 from typing import Any, NamedTuple, TypedDict
 
 import pytest
-from msgspec import Struct
-from rdflib import BNode, IdentifiedNode, URIRef
-
 from appnlib.core.utils import (
     get_key_or_attribute,
     make_ref,
 )
+from msgspec import Struct
+from rdflib import BNode, IdentifiedNode, URIRef
 
 
 class PersonStruct(Struct):

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import datetime
-from dataclasses import Field
-from typing import Any, ClassVar, Optional, Protocol, Type, runtime_checkable
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
 
 from msgspec import Meta, Struct
 from rdflib import IdentifiedNode, URIRef
 from rdflib.namespace import XSD
+
+if TYPE_CHECKING:
+    from dataclasses import Field
 
 __all__ = (
     "AnnotatedP",
@@ -20,7 +22,7 @@ __all__ = (
 
 XSD_TO_PYTHON: dict[
     URIRef,
-    tuple[Type, Optional[Meta]],
+    tuple[type, Meta | None],
 ] = {
     XSD.base64Binary: (bytes, None),
     XSD.boolean: (bool, None),
@@ -44,7 +46,7 @@ XSD_TO_PYTHON: dict[
     XSD.string: (str, None),
 }
 
-PYTHON_TO_XSD: dict[Type | Any, URIRef] = {
+PYTHON_TO_XSD: dict[type | Any, URIRef] = {
     datetime.date: XSD.date,
     datetime.time: XSD.time,
     datetime.datetime: XSD.dateTime,
@@ -62,7 +64,7 @@ PYTHON_TO_XSD: dict[Type | Any, URIRef] = {
 class AnnotatedP(Protocol):
     """Protocol that has __annotations__ field"""
 
-    __annotations__: dict[str, Type]
+    __annotations__: dict[str, type]
 
 
 @runtime_checkable
@@ -119,14 +121,11 @@ class FieldInfo(Struct):
             if not self.range or self.range == XSD.IDREF:
                 self.range = XSD.IDREF
             else:
-                raise ValueError(
-                    "If a resource reference is provided, range must be a None or XSD.IDREF"
-                )
+                raise ValueError("If a resource reference is provided, range must be a None or XSD.IDREF")
 
 
 class Schema(Struct):
-    """
-    Schema object that provides properties information for
+    """Schema object that provides properties information for
     attributes of a `LinkedDataClass`.
     """
 
@@ -169,4 +168,4 @@ class Schema(Struct):
         Returns:
             FieldSet: set of required fields in schema
         """
-        return set([k for k, v in self.attrs.items() if v.required])
+        return {k for k, v in self.attrs.items() if v.required}

@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import Literal
+
 from enum import StrEnum
+from typing import Literal
+
 from appnlib.core.types import (
+    AnnotatedP,
+    DataClassP,
+    DataClassT,
     Schema,
     StructP,
-    DataClassT,
-    DataClassP,
-    AnnotatedP,
 )
 
 __all__ = (
@@ -88,9 +90,7 @@ class SchemaValidator:
         elif isinstance(attrs, AnnotatedP):
             field_set = set(attrs.__annotations__.keys())
         else:
-            raise TypeError(
-                f"Invalid type. Expects dict, struct, dataclass or annotated. Given: {type(attrs)}"
-            )
+            raise TypeError(f"Invalid type. Expects dict, struct, dataclass or annotated. Given: {type(attrs)}")
 
         if mode == "required":
             return schema.required.issubset(field_set)

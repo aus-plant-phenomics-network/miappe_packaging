@@ -1,94 +1,32 @@
 # %%
-import datetime
+from typing import Optional, Set
 
-from msgspec import field
-from rdflib.namespace import FOAF, XSD
-
-from appnlib.core.dataclass import LinkedDataClass, Registry
-from appnlib.core.types import FieldInfo, Schema
-
-PersonSchema = Schema(
-    rdf_resource=FOAF.Person,
-    attrs={
-        "firstName": FieldInfo(ref=FOAF.firstName),
-        "lastName": FieldInfo(ref=FOAF.lastName),
-        "birthdate": FieldInfo(ref=FOAF.birthday, range=XSD.date),
-        "knows": FieldInfo(ref=FOAF.knows, repeat=True, resource_ref=FOAF.Person),
-    },
-)
-
-GroupSchema = Schema(
-    rdf_resource=FOAF.Group,
-    attrs={"member": FieldInfo(FOAF.member, repeat=True, resource_ref=FOAF.Person)},
-)
+import msgspec
 
 
-class Person(LinkedDataClass):
-    __schema__ = PersonSchema
+class User(msgspec.Struct, dict=True):
+    """A struct representing a user"""
 
-    firstName: str
-    lastName: str
-    birthdate: datetime.date
-    knows: list[str] = field(default_factory=list)
-
-
-class Group(LinkedDataClass):
-    __schema__ = GroupSchema
-    member: list[str]
+    name: str
+    groups: Set[str] = set()
+    email: Optional[str] = None
 
 
-ID_POOL = {
-    "BarrackObama": "http://example.org/BarrackObama",
-    "JoeBiden": "http://example.org/JoeBiden",
-    "BillClinton": "http://example.org/BillClinton",
-    "AlGore": "http://example.org/AlGore",
-}
+class User2(msgspec.Struct):
+    """An updated version of the User struct, now with a phone number"""
 
-Obama = Person(
-    id=ID_POOL["BarrackObama"],
-    firstName="Barrack",
-    lastName="Obama",
-    birthdate=datetime.date(1961, 8, 4),
-    knows=[ID_POOL["JoeBiden"], ID_POOL["BillClinton"]],
-)
+    name: str
+    groups: Set[str] = set()
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
-Biden = Person(
-    id=ID_POOL["JoeBiden"],
-    firstName="Joe",
-    lastName="Biden",
-    birthdate=datetime.date(1942, 11, 20),
-    knows=[ID_POOL["BarrackObama"]],
-)
 
-Clinton = Person(
-    id=ID_POOL["BillClinton"],
-    firstName="Bill",
-    lastName="Clinton",
-    birthdate=datetime.date(1946, 8, 19),
-    knows=[ID_POOL["AlGore"], ID_POOL["BarrackObama"]],
-)
+old_dec = msgspec.json.Decoder(User)
 
-AlGore = Person(
-    id=ID_POOL["AlGore"],
-    firstName="Al",
-    lastName="Gore",
-    birthdate=datetime.date(1948, 3, 31),
-    knows=[ID_POOL["BillClinton"]],
-)
+new_dec = msgspec.json.Decoder(User2)
 
-Presidents = Group(
-    id="http://example.org/USPresidents",
-    member=[ID_POOL["BarrackObama"], ID_POOL["BillClinton"], ID_POOL["JoeBiden"]],
-)
-VicePresidents = Group(
-    id="http://example.org/USVicePresidents",
-    member=[ID_POOL["AlGore"], ID_POOL["JoeBiden"]],
-)
+new_msg = msgspec.json.encode(User2("bob", groups={"finance"}, phone="512-867-5309"))
 
-registry = Registry()
-session = registry.create_session()
-session.add(VicePresidents)
-session.add(Presidents)
-session.to_json(destination="WhiteHouse.json", context={"foaf": FOAF._NS})
+user = old_dec.decode(new_msg)
 
 # %%

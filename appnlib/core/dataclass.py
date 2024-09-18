@@ -1,41 +1,40 @@
 from __future__ import annotations
 
+import datetime
+import decimal
+import uuid
+from collections.abc import Callable, Generator
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     ClassVar,
-    Generator,
-    Optional,
     Self,
-    Type,
-    Union,
     cast,
 )
 from typing import Literal as PyLiteral
 
 import msgspec
-from msgspec import Struct, field
-from rdflib import BNode, Graph, IdentifiedNode, Literal, Namespace, URIRef
-from rdflib.graph import _ContextIdentifierType, _TripleType
-from rdflib.namespace import XSD, NamespaceManager
-from rdflib.store import Store
-
 from appnlib.core.exceptions import AnnotationError, IntegrityError
 from appnlib.core.types import Schema
 from appnlib.core.utils import make_ref
 from appnlib.core.validator import SchemaValidator
+from msgspec import Struct, field
+from rdflib import BNode, Graph, IdentifiedNode, Literal, Namespace, URIRef
+from rdflib.namespace import RDF, XSD, NamespaceManager
 
 if TYPE_CHECKING:
+    from appnlib.core.types import Schema
     from rdflib._type_checking import _NamespaceSetString
+    from rdflib.graph import _ContextIdentifierType, _TripleType
+    from rdflib.store import Store
 
 __all__ = ("LinkedDataClass",)
 
-EncHookT = Optional[Callable[[Any], Any]]
-DecHookT = Optional[Callable[[type, Any], Any]]
+EncHookT = Callable[[Any], Any] | None
+DecHookT = Callable[[type, Any], Any] | None
 
 
-class LinkedDataClass(Struct, kw_only=True):
+class LinkedDataClass(Struct, kw_only=True, dict=True):
     """Base Linked DataClass"""
 
     id: str = field(default_factory=BNode)
@@ -44,7 +43,7 @@ class LinkedDataClass(Struct, kw_only=True):
     """Schema object. Class attribute"""
 
     @property
-    def ID(self) -> IdentifiedNode:
+    def ID(self) -> IdentifiedNode:  # noqa: N802
         """Return id as either URIRef or BNode"""
         return make_ref(self.id)
 
@@ -60,11 +59,10 @@ class LinkedDataClass(Struct, kw_only=True):
 
     def __init_subclass__(cls) -> None:
         # Validate schema
-        if hasattr(cls, "__schema__"):
-            if not SchemaValidator.describe_attrs(attrs=cls, schema=cls.__schema__, mode="full"):
-                raise AnnotationError("Schema does not fully describe LinkedDataClass")
+        if hasattr(cls, "__schema__") and not SchemaValidator.describe_attrs(attrs=cls, schema=cls.__schema__, mode="full"):
+            raise AnnotationError("Schema does not fully describe LinkedDataClass")
         # Register
-        Registry().register_schema(getattr(cls, "__schema__"))
+        Registry().register_schema(cls.__schema__)
         return super().__init_subclass__()
 
     def __post_init__(self) -> None:
@@ -72,13 +70,15 @@ class LinkedDataClass(Struct, kw_only=True):
 
 
 def default_enc_hook(obj: Any) -> Any:
-    if isinstance(obj, (Literal, IdentifiedNode)):
+    if isinstance(obj, Literal):
+        return obj.toPython()
+    if isinstance(obj, IdentifiedNode):
         return obj.toPython()
     raise TypeError(f"Invalid encoding type: {type(obj)}")
 
 
-def default_dec_hook(type: Type, obj: Any) -> Any:
-    if issubclass(type, IdentifiedNode):
+def default_dec_hook(type: type, obj: Any) -> Any:
+    if issubclass(type, IdentifiedNode):  # noqa: RET503
         return make_ref(str(obj))
 
 
@@ -92,7 +92,24 @@ class Codec:
         self.dec_hook = dec_hook
 
     def encode_to_dict(self, dataclass: LinkedDataClass, enc_hook: EncHookT = None) -> dict[str, Any]:
-        return cast(dict[str, Any], msgspec.to_builtins(obj=dataclass, enc_hook=enc_hook))
+        return cast(
+            dict[str, Any],
+            msgspec.to_builtins(
+                obj=dataclass,
+                enc_hook=enc_hook,
+                builtin_types=(
+                    bytes,
+                    bytearray,
+                    memoryview,
+                    datetime.datetime,
+                    datetime.time,
+                    datetime.date,
+                    datetime.timedelta,
+                    uuid.UUID,
+                    decimal.Decimal,
+                ),
+            ),
+        )
 
     def encode_to_triple(self, dataclass: LinkedDataClass) -> list[_TripleType]:
         result: list[_TripleType] = []
@@ -116,7 +133,9 @@ class Codec:
                 if not hasattr(value, "__len__") or isinstance(value, str):
                     value = [value]
                 for _value in value:
-                    result.append((dataclass.ID, Literal(info.ref), Literal(_value)))
+                    result.append((dataclass.ID, Literal(sfield), Literal(_value)))
+
+        result.append((dataclass.ID, RDF.type, dataclass.rdf_resource))
         return result
 
     def decode_triple_to_dict(
@@ -129,7 +148,7 @@ class Codec:
     def decode_from_dict(
         self,
         attrs: dict[str, Any],
-        model: Type[LinkedDataClass],
+        model: type[LinkedDataClass],
         dec_hook: DecHookT = None,
         **kwargs: Any,
     ) -> LinkedDataClass:
@@ -140,7 +159,7 @@ class Codec:
         )
 
 
-DEFAULT_CODEC = Codec()
+DEFAULT_CODEC = Codec(enc_hook=default_enc_hook, dec_hook=default_dec_hook)
 
 
 class RegistryConfig(Struct):
@@ -165,14 +184,17 @@ class RegistryConfig(Struct):
     """Describe how conflicting identifier should be handled by the registry"""
 
 
+DEFAULT_REGISTRY_CONFIG = RegistryConfig()
+
+
 class Session:
     def __init__(
         self,
-        store: Union[Store, str] = "default",
-        identifier: Optional[Union[_ContextIdentifierType, str]] = None,
-        namespace_manager: Optional[NamespaceManager] = None,
-        base: Optional[str] = None,
-        bind_namespaces: "_NamespaceSetString" = "rdflib",
+        store: Store | str = "default",
+        identifier: _ContextIdentifierType | str | None = None,
+        namespace_manager: NamespaceManager | None = None,
+        base: str | None = None,
+        bind_namespaces: _NamespaceSetString = "rdflib",
         **kwargs: Any,
     ) -> None:
         self._graph = Graph(
@@ -217,7 +239,7 @@ class Session:
 
     def to_json(
         self,
-        destination: str,
+        destination: str | None = None,
         base: str | None = None,
         encoding: str | None = None,
         context: dict[str, URIRef | Namespace] | None = None,
@@ -228,8 +250,8 @@ class Session:
         separators: tuple[str, str] = (",", ":"),
         sort_keys: bool = True,
         ensure_ascii: bool = False,
-    ) -> None:
-        self._graph.serialize(
+    ) -> Any:
+        return self._graph.serialize(
             destination=destination,
             format="json-ld",
             base=base,
@@ -247,21 +269,39 @@ class Session:
 
 class Registry:
     _instance: Self | None = None
-    _schema_dict: ClassVar[dict[URIRef, Schema]] = dict()
-    _instance_dict: ClassVar[dict[URIRef, dict[IdentifiedNode, LinkedDataClass]]] = dict()
-    _session_dict: ClassVar[dict[IdentifiedNode, Session]] = dict()
-    __config__: ClassVar[RegistryConfig] = RegistryConfig()
+    _schema_dict: ClassVar[dict[URIRef, Schema]]
+    _instance_dict: ClassVar[dict[URIRef, dict[IdentifiedNode, LinkedDataClass]]]
+    _session_dict: ClassVar[dict[IdentifiedNode, Session]]
 
-    def __new__(self, *args: Any, **kwargs: Any) -> Self:
-        if not self._instance:
-            self._instance = super().__new__(self, *args, **kwargs)
-        return cast(Self, self._instance)
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
+        if not cls._instance:
+            cls._instance = super().__new__(cls, *args, **kwargs)
+            cls._schema_dict = {}
+            cls._instance_dict = {}
+            cls._session_dict = {}
+        return cast(Self, cls._instance)
+
+    @classmethod
+    def reset(cls) -> None:
+        cls._instance = None
+
+    def __init__(self, config: RegistryConfig = DEFAULT_REGISTRY_CONFIG) -> None:
+        if not hasattr(self, "_config"):
+            self._config = config
+
+    @property
+    def config(self) -> RegistryConfig:
+        return self._config
+
+    @config.setter
+    def config(self, value: RegistryConfig) -> None:
+        self._config = value
 
     def _handle_conflict_instance(
         self,
         instance: LinkedDataClass,
     ) -> None:
-        match self.__config__.on_confict_identifier:
+        match self.config.on_confict_identifier:
             case "raise":
                 raise IntegrityError(f"A previous instance with the same ID have been registered: {instance.ID}")
             case "overwrite":
@@ -269,7 +309,7 @@ class Registry:
                 return
 
     def _handle_conflict_schema(self, obj: Schema) -> None:
-        match self.__config__.on_conflict_schema:
+        match self.config.on_conflict_schema:
             case "raise":
                 raise IntegrityError(f"A schema describing the same resource has been registered: {obj.rdf_resource}")
             case "overwrite":
@@ -280,19 +320,18 @@ class Registry:
                 if SchemaValidator.is_sub_schema(obj, prev_obj):
                     self._schema_dict[obj.rdf_resource] = prev_obj
                     return
-                elif SchemaValidator.is_sub_schema(prev_obj, obj):
+                if SchemaValidator.is_sub_schema(prev_obj, obj):
                     self._schema_dict[obj.rdf_resource] = obj
                     return
-                else:
-                    raise IntegrityError(f"Conflicting schemas that are not sub schema of one another: {obj.rdf_resource}")
+                raise IntegrityError(f"Conflicting schemas that are not sub schema of one another: {obj.rdf_resource}")
 
     def create_session(
         self,
-        store: Union[Store, str] = "default",
-        identifier: Optional[Union[_ContextIdentifierType, str]] = None,
-        namespace_manager: Optional[NamespaceManager] = None,
-        base: Optional[str] = None,
-        bind_namespaces: "_NamespaceSetString" = "rdflib",
+        store: Store | str = "default",
+        identifier: _ContextIdentifierType | str | None = None,
+        namespace_manager: NamespaceManager | None = None,
+        base: str | None = None,
+        bind_namespaces: _NamespaceSetString = "rdflib",
         **kwargs: Any,
     ) -> Session:
         """Create a session using rdflib.Graph constructor params"""
@@ -313,7 +352,7 @@ class Registry:
 
         Args:
             identifier (IdentifiedNode): ID of the session graph
-
+            kwargs (Any): other kwargs for create_session
         """
         if identifier in self._session_dict:
             return self._session_dict[identifier]
@@ -344,7 +383,7 @@ class Registry:
             self._handle_conflict_schema(schema)
         else:
             self._schema_dict[schema.rdf_resource] = schema
-            self._instance_dict[schema.rdf_resource] = dict()
+            self._instance_dict[schema.rdf_resource] = {}
 
     def register_instance(self, instance: LinkedDataClass) -> None:
         """Add an instance to registry.

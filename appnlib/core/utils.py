@@ -37,9 +37,7 @@ def make_ref(identifier: IdentifiedNode | str | None = None) -> IdentifiedNode:
     raise TypeError(f"Invalid type: {type(identifier)}")
 
 
-def get_key_or_attribute(
-    field: str, obj: Any, raise_error_if_missing: bool = False
-) -> Any:
+def get_key_or_attribute(field: str, obj: Any, raise_error_if_missing: bool = False) -> Any:
     """From an object, attempt to get key if object is dict like otherwise get attribute.
 
     Read obj.get(field) then try getattr(obj, field)
