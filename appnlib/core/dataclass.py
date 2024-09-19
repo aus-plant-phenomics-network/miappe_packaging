@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import datetime
-import decimal
-import uuid
 from collections.abc import Callable, Generator
 from typing import (
     TYPE_CHECKING,
@@ -13,12 +10,11 @@ from typing import (
 )
 from typing import Literal as PyLiteral
 
-import msgspec
 from appnlib.core.exceptions import AnnotationError, IntegrityError
 from appnlib.core.types import Schema
 from appnlib.core.utils import make_ref
 from appnlib.core.validator import SchemaValidator
-from msgspec import Struct, field
+from pydantic import BaseModel, ConfigDict, Field
 from rdflib import BNode, Graph, IdentifiedNode, Literal, Namespace, URIRef
 from rdflib.namespace import RDF, XSD, NamespaceManager
 
@@ -34,13 +30,21 @@ EncHookT = Callable[[Any], Any] | None
 DecHookT = Callable[[type, Any], Any] | None
 
 
-class LinkedDataClass(Struct, kw_only=True, dict=True):
+class LinkedDataClass(BaseModel):
     """Base Linked DataClass"""
 
-    id: str = field(default_factory=BNode)
+    id: str | IdentifiedNode = Field(default_factory=BNode)
     """Instance ID. If not provided, will be assigned a blank node ID"""
     __schema__: ClassVar[Schema]
     """Schema object. Class attribute"""
+    model_config = ConfigDict(
+        json_encoders={
+            URIRef: lambda v: v.toPython(),
+            BNode: lambda v: v.toPython(),
+            Literal: lambda v: v.toPython(),
+            "LinkedDataClass": lambda v: v.ID,
+        },
+    )
 
     @property
     def ID(self) -> IdentifiedNode:  # noqa: N802
@@ -62,62 +66,20 @@ class LinkedDataClass(Struct, kw_only=True, dict=True):
         if hasattr(cls, "__schema__") and not SchemaValidator.describe_attrs(attrs=cls, schema=cls.__schema__, mode="full"):
             raise AnnotationError("Schema does not fully describe LinkedDataClass")
         # Register
-        Registry().register_schema(cls.__schema__)
+        # Registry().register_schema(cls.__schema__)
         return super().__init_subclass__()
 
     def __post_init__(self) -> None:
-        Registry().register_instance(self)
+        # Registry().register_instance(self)
+        pass
 
-
-def default_enc_hook(obj: Any) -> Any:
-    if isinstance(obj, Literal):
-        return obj.toPython()
-    if isinstance(obj, IdentifiedNode):
-        return obj.toPython()
-    raise TypeError(f"Invalid encoding type: {type(obj)}")
-
-
-def default_dec_hook(type: type, obj: Any) -> Any:
-    if issubclass(type, IdentifiedNode):  # noqa: RET503
-        return make_ref(str(obj))
-
-
-class Codec:
-    def __init__(
-        self,
-        enc_hook: EncHookT = default_enc_hook,
-        dec_hook: DecHookT = default_dec_hook,
-    ) -> None:
-        self.enc_hook = enc_hook
-        self.dec_hook = dec_hook
-
-    def encode_to_dict(self, dataclass: LinkedDataClass, enc_hook: EncHookT = None) -> dict[str, Any]:
-        return cast(
-            dict[str, Any],
-            msgspec.to_builtins(
-                obj=dataclass,
-                enc_hook=enc_hook,
-                builtin_types=(
-                    bytes,
-                    bytearray,
-                    memoryview,
-                    datetime.datetime,
-                    datetime.time,
-                    datetime.date,
-                    datetime.timedelta,
-                    uuid.UUID,
-                    decimal.Decimal,
-                ),
-            ),
-        )
-
-    def encode_to_triple(self, dataclass: LinkedDataClass) -> list[_TripleType]:
+    def to_triple(self) -> list[_TripleType]:
         result: list[_TripleType] = []
-        schema = dataclass.schema
-        for sfield in dataclass.__struct_fields__:
+        schema = self.schema
+        for sfield in self.model_fields:
             if sfield == "id":
                 continue
-            value = getattr(dataclass, sfield)
+            value = getattr(self, sfield)
             info = schema.attrs[sfield]
             if not isinstance(value, str) and hasattr(value, "__len__"):
                 if not info.repeat:
@@ -126,43 +88,20 @@ class Codec:
                 value = [value]
             for _value in value:
                 _value = make_ref(_value) if info.range == XSD.IDREF else Literal(_value, datatype=info.range)
-                result.append((dataclass.ID, info.ref, _value))
+                result.append((self.ID, info.ref, _value))
 
-        if hasattr(dataclass, "__dict__"):
-            for sfield, value in dataclass.__dict__.items():
+        if hasattr(self, "__dict__"):
+            for sfield, value in self.__dict__.items():
                 if not hasattr(value, "__len__") or isinstance(value, str):
                     value = [value]
                 for _value in value:
-                    result.append((dataclass.ID, Literal(sfield), Literal(_value)))
+                    result.append((self.ID, Literal(sfield), Literal(_value)))
 
-        result.append((dataclass.ID, RDF.type, dataclass.rdf_resource))
+        result.append((self.ID, RDF.type, self.rdf_resource))
         return result
 
-    def decode_triple_to_dict(
-        self,
-        triple: Generator[_TripleType, None, None] | list[_TripleType],
-        schema: Schema,
-    ) -> LinkedDataClass:
-        pass
 
-    def decode_from_dict(
-        self,
-        attrs: dict[str, Any],
-        model: type[LinkedDataClass],
-        dec_hook: DecHookT = None,
-        **kwargs: Any,
-    ) -> LinkedDataClass:
-        dec_hook = dec_hook if dec_hook else self.dec_hook
-        return cast(
-            LinkedDataClass,
-            msgspec.convert(attrs, type=model, dec_hook=dec_hook, **kwargs),
-        )
-
-
-DEFAULT_CODEC = Codec(enc_hook=default_enc_hook, dec_hook=default_dec_hook)
-
-
-class RegistryConfig(Struct):
+class RegistryConfig(BaseModel):
     on_conflict_schema: PyLiteral[
         "raise",
         "overwrite",

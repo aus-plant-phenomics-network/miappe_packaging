@@ -1,32 +1,102 @@
 # %%
-from typing import Optional, Set
+from __future__ import annotations
 
-import msgspec
+from collections.abc import Callable, Generator
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Self,
+    cast,
+)
+from typing import Literal as PyLiteral
+
+from appnlib.core.exceptions import AnnotationError, IntegrityError
+from appnlib.core.types import Schema
+from appnlib.core.utils import make_ref
+from appnlib.core.validator import SchemaValidator
+from pydantic import BaseModel, ConfigDict, Field
+from rdflib import BNode, Graph, IdentifiedNode, Literal, Namespace, URIRef
+from rdflib.namespace import RDF, XSD, NamespaceManager
+
+if TYPE_CHECKING:
+    from appnlib.core.types import Schema
+    from rdflib._type_checking import _NamespaceSetString
+    from rdflib.graph import _ContextIdentifierType, _TripleType
+    from rdflib.store import Store
+
+__all__ = ("LinkedDataClass",)
 
 
-class User(msgspec.Struct, dict=True):
-    """A struct representing a user"""
+class LinkedDataClass(BaseModel):
+    """Base Linked DataClass"""
 
-    name: str
-    groups: Set[str] = set()
-    email: Optional[str] = None
+    id: str | IdentifiedNode = Field(default_factory=BNode)
+    """Instance ID. If not provided, will be assigned a blank node ID"""
+    __schema__: ClassVar[Schema]
+    """Schema object. Class attribute"""
+    model_config = ConfigDict(
+        json_encoders={
+            URIRef: lambda v: v.toPython(),
+            BNode: lambda v: v.toPython(),
+            Literal: lambda v: v.toPython(),
+            "LinkedDataClass": lambda v: v.ID,
+        },
+    )
 
+    @property
+    def ID(self) -> IdentifiedNode:  # noqa: N802
+        """Return id as either URIRef or BNode"""
+        return make_ref(self.id)
 
-class User2(msgspec.Struct):
-    """An updated version of the User struct, now with a phone number"""
+    @property
+    def schema(self) -> Schema:
+        """Get associated schema"""
+        return self.__schema__
 
-    name: str
-    groups: Set[str] = set()
-    email: Optional[str] = None
-    phone: Optional[str] = None
+    @property
+    def rdf_resource(self) -> URIRef:
+        """Get associated rdf resource"""
+        return self.schema.rdf_resource
 
+    def __init_subclass__(cls) -> None:
+        # Validate schema
+        if hasattr(cls, "__schema__") and not SchemaValidator.describe_attrs(attrs=cls, schema=cls.__schema__, mode="full"):
+            raise AnnotationError("Schema does not fully describe LinkedDataClass")
+        # Register
+        # Registry().register_schema(cls.__schema__)
+        return super().__init_subclass__()
 
-old_dec = msgspec.json.Decoder(User)
+    def __post_init__(self) -> None:
+        # Registry().register_instance(self)
+        pass
 
-new_dec = msgspec.json.Decoder(User2)
+    def to_triple(self) -> list[_TripleType]:
+        result: list[_TripleType] = []
+        schema = self.schema
+        for sfield in self.model_fields:
+            if sfield == "id":
+                continue
+            value = getattr(self, sfield)
+            info = schema.attrs[sfield]
+            if not isinstance(value, str) and hasattr(value, "__len__"):
+                if not info.repeat:
+                    raise AnnotationError(f"field {sfield} is not annotated as repeat but is of container type: {type(value)}")
+            else:
+                value = [value]
+            for _value in value:
+                _value = make_ref(_value) if info.range == XSD.IDREF else Literal(_value, datatype=info.range)
+                result.append((self.ID, info.ref, _value))
 
-new_msg = msgspec.json.encode(User2("bob", groups={"finance"}, phone="512-867-5309"))
+        if hasattr(self, "__dict__"):
+            for sfield, value in self.__dict__.items():
+                if not hasattr(value, "__len__") or isinstance(value, str):
+                    value = [value]
+                for _value in value:
+                    result.append((self.ID, Literal(sfield), Literal(_value)))
 
-user = old_dec.decode(new_msg)
+        result.append((self.ID, RDF.type, self.rdf_resource))
+        return result
+
 
 # %%
