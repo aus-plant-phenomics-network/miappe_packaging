@@ -37,14 +37,6 @@ class LinkedDataClass(BaseModel):
     """Instance ID. If not provided, will be assigned a blank node ID"""
     __schema__: ClassVar[Schema]
     """Schema object. Class attribute"""
-    model_config = ConfigDict(
-        json_encoders={
-            URIRef: lambda v: v.toPython(),
-            BNode: lambda v: v.toPython(),
-            Literal: lambda v: v.toPython(),
-            "LinkedDataClass": lambda v: v.ID,
-        },
-    )
 
     @property
     def ID(self) -> IdentifiedNode:  # noqa: N802

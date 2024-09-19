@@ -1,5 +1,5 @@
 import datetime
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 from appnlib.core.dataclass import DEFAULT_CODEC, LinkedDataClass, Registry, RegistryConfig
@@ -168,7 +168,11 @@ def test_encode_to_triple_extra_fields(registry: Registry) -> None:
 
     class ExtPerson(LinkedDataClass):
         __schema__ = Schema(
-            rdf_resource=FOAF.Person, attrs={"firstName": FieldInfo(ref=FOAF.firstName), "birthday": FieldInfo(ref=FOAF.birthday, range=XSD.date)}
+            rdf_resource=FOAF.Person,
+            attrs={
+                "firstName": FieldInfo(ref=FOAF.firstName),
+                "birthday": FieldInfo(ref=FOAF.birthday, range=XSD.date),
+            },
         )
         firstName: str
         birthday: datetime.date

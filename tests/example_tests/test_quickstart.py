@@ -29,8 +29,8 @@ registry = Registry()
 class Person(LinkedDataClass):
     __schema__ = PersonSchema
 
-    firstName: str  # noqa: N815
-    lastName: str  # noqa: N815
+    firstName: str
+    lastName: str
     birthday: datetime.date
     knows: list[str] = field(default_factory=list)
 

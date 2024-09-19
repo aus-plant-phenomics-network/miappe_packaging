@@ -3,8 +3,10 @@
     "appnlib",
     "bnode",
     "FOAF",
+    "IDREF",
     "miappe",
     "msgspec",
+    "pydantic",
     "rdflib",
     "rdftype"
   ],

@@ -3,13 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
-from appnlib.core.types import (
-    AnnotatedP,
-    DataClassP,
-    DataClassT,
-    Schema,
-    StructP,
-)
+from appnlib.core.types import AnnotatedP, DataClassP, DataClassT, PydanticModel, Schema
 
 __all__ = (
     "DescribeMode",
@@ -44,11 +38,7 @@ class SchemaValidator:
             raise TypeError(f"src must be of Schema type: {type(src)}")
         if not isinstance(dst, Schema):
             raise TypeError(f"dst must be of Schema type: {type(dst)}")
-        return (
-            src.rdf_resource == dst.rdf_resource
-            and src.fields.issubset(dst.fields)
-            and src.required.issubset(dst.required)
-        )
+        return src.rdf_resource == dst.rdf_resource and src.fields.issubset(dst.fields) and src.required.issubset(dst.required)
 
     @staticmethod
     def describe_attrs(
@@ -83,7 +73,7 @@ class SchemaValidator:
         field_set: set[str]
         if isinstance(attrs, dict):
             field_set = set(attrs.keys())
-        elif isinstance(attrs, StructP):
+        elif isinstance(attrs, PydanticModel):
             field_set = set(attrs.__struct_fields__)
         elif isinstance(attrs, DataClassP):
             field_set = set(attrs.__dataclass_fields__.keys())
