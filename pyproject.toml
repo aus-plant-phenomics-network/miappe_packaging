@@ -96,9 +96,10 @@ lint.ignore = [
     "RUF012",  # Ruff-specific rule - annotated with classvar
     "ISC001",  # Ruff formatter incompatible
     "A002",    # Argument id shadowing scope id
+    "ERA001",  # Commented out code
 ]
 
-src = ["src", "tests"]
+src = ["src"]
 target-version = "py311"
 
 [tool.ruff.lint.pydocstyle]
@@ -108,7 +109,7 @@ convention = "google"
 max-complexity = 12
 
 [tool.ruff.lint.isort]
-known-first-party = ["src", "tests"]
+known-first-party = ["src"]
 
 [tool.ruff.format]
 docstring-code-format = true
