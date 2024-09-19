@@ -1,29 +1,22 @@
 # %%
 from __future__ import annotations
 
-from collections.abc import Callable, Generator
 from typing import (
     TYPE_CHECKING,
-    Any,
     ClassVar,
-    Self,
-    cast,
 )
-from typing import Literal as PyLiteral
 
-from appnlib.core.exceptions import AnnotationError, IntegrityError
-from appnlib.core.types import Schema
+from appnlib.core.exceptions import AnnotationError
+from appnlib.core.types import BNode, IdentifiedNode, Schema, URIRef
 from appnlib.core.utils import make_ref
 from appnlib.core.validator import SchemaValidator
 from pydantic import BaseModel, ConfigDict, Field
-from rdflib import BNode, Graph, IdentifiedNode, Literal, Namespace, URIRef
-from rdflib.namespace import RDF, XSD, NamespaceManager
+from rdflib import Literal
+from rdflib.namespace import RDF, XSD
 
 if TYPE_CHECKING:
     from appnlib.core.types import Schema
-    from rdflib._type_checking import _NamespaceSetString
-    from rdflib.graph import _ContextIdentifierType, _TripleType
-    from rdflib.store import Store
+    from rdflib.graph import _TripleType
 
 __all__ = ("LinkedDataClass",)
 
@@ -97,6 +90,3 @@ class LinkedDataClass(BaseModel):
 
         result.append((self.ID, RDF.type, self.rdf_resource))
         return result
-
-
-# %%
